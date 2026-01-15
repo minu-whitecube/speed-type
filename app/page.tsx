@@ -161,6 +161,18 @@ export default function Home() {
     if (gameState !== 'playing') return;
 
     const value = e.target.value;
+    const previousLength = input.length;
+    const newLength = value.length;
+
+    // 붙여넣기 감지: 한 번에 2글자 이상 추가된 경우
+    if (newLength - previousLength >= 2) {
+      // 텍스트박스 초기화
+      setInput('');
+      setIsError(false);
+      alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
+      return;
+    }
+
     setInput(value);
 
     // 오타 감지
