@@ -1,0 +1,524 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+type GameState = 'start' | 'countdown' | 'playing' | 'result';
+
+// 랜덤으로 선택될 문장 목록
+const TARGET_SENTENCES = [
+  '차앤박 더마앤서 액티브 부스트 PDRN 앰플',
+  '얼터너티브스테레오 립 포션 카라멜 글레이즈',
+  '아누아 피디알엔 히알루론산 수분 캡슐 미스트',
+  '피지오겔 사이언수티컬즈 데일리뮨 앰플 세럼',
+  '에스트라 아토베리어365 하이드로 수딩크림',
+];
+
+// 테스트 모드: true로 설정하면 도전권 제한이 비활성화됩니다
+const TEST_MODE = true;
+
+export default function Home() {
+  const [gameState, setGameState] = useState<GameState>('start');
+  const [countdown, setCountdown] = useState(3);
+  const [input, setInput] = useState('');
+  const [time, setTime] = useState(0);
+  const [isError, setIsError] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [tickets, setTickets] = useState(1);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [finalTime, setFinalTime] = useState<number | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [copyText, setCopyText] = useState('');
+  const [currentSentence, setCurrentSentence] = useState<string>('');
+  
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const copyInputRef = useRef<HTMLInputElement>(null);
+  const placeholderRef = useRef<HTMLDivElement>(null);
+
+  // 유저 ID 가져오기 또는 생성
+  const getOrCreateUserId = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    
+    let storedUserId = localStorage.getItem('challengersUserId');
+    if (!storedUserId) {
+      storedUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('challengersUserId', storedUserId);
+    }
+    return storedUserId;
+  }, []);
+
+  // 유저 초기화
+  const initializeUser = useCallback(async (id: string) => {
+    try {
+      const response = await fetch('/api/user/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: id }),
+      });
+      const data = await response.json();
+      if (data.userId) {
+        setUserId(data.userId);
+        setTickets(data.tickets);
+        setIsCompleted(data.isCompleted);
+      }
+    } catch (error) {
+      console.error('Failed to initialize user:', error);
+    }
+  }, []);
+
+  // URL 파라미터에서 추천인 처리
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const refId = urlParams.get('ref');
+    const currentUserId = getOrCreateUserId();
+
+    if (currentUserId) {
+      initializeUser(currentUserId);
+
+      // 추천인 처리
+      if (refId && refId !== currentUserId) {
+        fetch('/api/referral/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            referrerId: refId,
+            referredId: currentUserId,
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              // URL에서 ref 파라미터 제거
+              window.history.replaceState({}, '', window.location.pathname);
+              // 현재 유저의 tickets 다시 조회 (피초대자는 기본 1개)
+              initializeUser(currentUserId);
+            }
+          })
+          .catch((error) => {
+            console.error('Failed to process referral:', error);
+          });
+      }
+    }
+  }, [getOrCreateUserId, initializeUser]);
+
+  // 게임 시작
+  const handleStart = () => {
+    if (!TEST_MODE && tickets <= 0) {
+      alert('도전권이 없습니다. 링크를 공유하여 재도전 기회를 얻으세요!');
+      return;
+    }
+
+    // 랜덤으로 문장 선택
+    const randomIndex = Math.floor(Math.random() * TARGET_SENTENCES.length);
+    const selectedSentence = TARGET_SENTENCES[randomIndex];
+    setCurrentSentence(selectedSentence);
+
+    setGameState('countdown');
+    setCountdown(3);
+    setInput('');
+    setTime(0);
+    setIsError(false);
+  };
+
+  // 카운트다운
+  useEffect(() => {
+    if (gameState === 'countdown') {
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setGameState('playing');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [gameState]);
+
+  // 스탑워치
+  useEffect(() => {
+    if (gameState === 'playing') {
+      intervalRef.current = setInterval(() => {
+        setTime((prev) => prev + 0.01);
+      }, 10);
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+      };
+    }
+  }, [gameState]);
+
+  // 입력 처리
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (gameState !== 'playing') return;
+
+    const value = e.target.value;
+    setInput(value);
+
+    // 오타 감지
+    const isCorrect = currentSentence.startsWith(value);
+    setIsError(!isCorrect);
+
+    // 완료 체크
+    if (value === currentSentence) {
+      handleComplete();
+    }
+  };
+
+  // 게임 완료
+  const handleComplete = async () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    setFinalTime(time);
+    setGameState('result');
+
+    // 도전권 차감 및 완료 상태 업데이트
+    if (userId) {
+      try {
+        // 테스트 모드가 아닐 때만 tickets 차감
+        if (!TEST_MODE) {
+          await fetch('/api/user/tickets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId }),
+          });
+          setTickets((prev) => Math.max(0, prev - 1));
+        }
+
+        // 완료 상태 업데이트
+        await fetch('/api/user/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        }).catch(() => {
+          // API가 없어도 무시
+        });
+
+        setIsCompleted(true);
+      } catch (error) {
+        console.error('Failed to update user:', error);
+      }
+    }
+  };
+
+  // 포커스 처리
+  useEffect(() => {
+    if (gameState === 'playing' && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [gameState]);
+
+  // 텍스트 박스 높이를 텍스트에 맞게 조정
+  useEffect(() => {
+    if (inputRef.current && currentSentence && gameState === 'playing') {
+      const textarea = inputRef.current;
+      
+      // 초기 높이를 리셋
+      textarea.style.height = 'auto';
+      
+      // 텍스트의 실제 높이 측정을 위해 스크롤 높이 사용
+      const scrollHeight = textarea.scrollHeight;
+      
+      // 최소 높이 설정 (한 줄 높이 + padding)
+      const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight) || 24;
+      const padding = 32; // p-4 = 16px * 2
+      const minHeight = lineHeight + padding;
+      
+      // 텍스트 높이에 맞춰 조정 (최소 높이 보장)
+      textarea.style.height = Math.max(scrollHeight, minHeight) + 'px';
+    }
+  }, [currentSentence, gameState, input]);
+
+  // 공유 URL 생성
+  const getShareUrl = () => {
+    if (typeof window === 'undefined' || !userId) return '';
+    return `${window.location.origin}?ref=${userId}`;
+  };
+
+  // 공유 텍스트 생성
+  const getShareText = () => {
+    const shareUrl = getShareUrl();
+    return `챌린저스 따라쓰기 이벤트에 도전해보세요!${shareUrl}`;
+  };
+
+  // 링크 복사
+  const copyLink = async (text?: string) => {
+    const textToCopy = text || getShareUrl();
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+        alert('링크가 복사되었습니다!');
+        return true;
+      } else {
+        // iOS Safari fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        if (success) {
+          alert('링크가 복사되었습니다!');
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+
+    // 수동 복사 모달 표시
+    setCopyText(textToCopy);
+    setShowCopyModal(true);
+    setTimeout(() => {
+      copyInputRef.current?.select();
+    }, 100);
+    return false;
+  };
+
+  // 공유 처리
+  const handleShare = async () => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isKakaoTalk = typeof navigator !== 'undefined' && /KAKAOTALK|KAKAO/i.test(navigator.userAgent);
+
+    if (isKakaoTalk) {
+      // 카카오톡 브라우저에서는 커스텀 모달 표시
+      setShowShareModal(true);
+      return;
+    }
+
+    if (isIOS && navigator.share) {
+      try {
+        await navigator.share({
+          title: '챌린저스 따라쓰기 이벤트',
+          text: getShareText(),
+        });
+        return;
+      } catch (error) {
+        // 사용자가 취소한 경우
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Share failed:', error);
+        }
+      }
+    }
+
+    // 기본: 클립보드 복사
+    copyLink();
+  };
+
+  // 카카오톡 공유 모달에서 메시지와 링크 복사
+  const handleKakaoShare = () => {
+    const shareText = getShareText();
+    copyLink(shareText);
+    setShowShareModal(false);
+  };
+
+  // 재도전
+  const handleRetry = () => {
+    if (!TEST_MODE && tickets <= 0) {
+      alert('도전권이 없습니다. 링크를 공유하여 재도전 기회를 얻으세요!');
+      return;
+    }
+    // 재도전 시에도 새로운 랜덤 문장 선택
+    const randomIndex = Math.floor(Math.random() * TARGET_SENTENCES.length);
+    const selectedSentence = TARGET_SENTENCES[randomIndex];
+    setCurrentSentence(selectedSentence);
+    setGameState('start');
+    setInput('');
+    setTime(0);
+    setFinalTime(null);
+    setIsError(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-white flex items-center justify-center p-3 md:p-5">
+      <div className="container mx-auto max-w-2xl w-full">
+        {gameState === 'start' && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 animate-fadeIn">
+            <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
+              챌린저스 따라쓰기 이벤트
+            </h1>
+            <p className="text-center text-gray-600 mb-8">
+              주어진 문장을 정확히 따라 써보세요!
+            </p>
+            <div className="text-center mb-6">
+              <p className="text-sm text-gray-500 mb-2">남은 도전권</p>
+              <p className="text-2xl font-bold text-[#F93B4E]">{tickets}개</p>
+            </div>
+            <button
+              onClick={handleStart}
+              disabled={!TEST_MODE && tickets <= 0}
+              className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {!TEST_MODE && tickets <= 0 ? '도전권이 없습니다' : '시작하기'}
+            </button>
+          </div>
+        )}
+
+        {gameState === 'countdown' && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
+                {countdown}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {gameState === 'playing' && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 animate-fadeIn">
+            <div className="text-center mb-6">
+              <div className="text-3xl font-bold text-[#F93B4E] mb-2">
+                {time.toFixed(2)}초
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm md:text-base font-semibold text-gray-900 mb-4 leading-relaxed text-center">
+                {currentSentence}
+              </p>
+              <div className="relative">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
+                  }}
+                  className={`w-full p-4 border-2 rounded-xl text-sm md:text-base resize-none focus:outline-none transition-colors relative z-10 bg-transparent ${
+                    isError
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-200 focus:border-[#F93B4E]'
+                  }`}
+                  style={{
+                    color: isError ? '#ef4444' : '#111827',
+                    minHeight: 'auto',
+                    height: 'auto',
+                  }}
+                />
+                <div 
+                  className="absolute top-0 left-0 w-full p-4 text-sm md:text-base text-gray-300 pointer-events-none z-0 whitespace-pre-wrap"
+                  style={{
+                    opacity: input.length === 0 ? 1 : 0.3,
+                    fontFamily: 'inherit',
+                    lineHeight: 'inherit',
+                    letterSpacing: 'inherit',
+                  }}
+                >
+                  <span style={{ opacity: 0 }}>
+                    {input}
+                  </span>
+                  <span>
+                    {currentSentence.substring(input.length)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {gameState === 'result' && finalTime !== null && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 animate-fadeIn">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                완료!
+              </h2>
+              <div className="mb-6">
+                <p className="text-sm text-gray-500 mb-2">기록</p>
+                <p className="text-4xl font-bold text-[#F93B4E]">
+                  {finalTime.toFixed(2)}초
+                </p>
+              </div>
+              <div className="mb-6">
+                <p className="text-sm text-gray-500 mb-2">남은 도전권</p>
+                <p className="text-2xl font-bold text-[#F93B4E]">{tickets}개</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={handleShare}
+                className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+              >
+                공유하기
+              </button>
+              {(TEST_MODE || tickets > 0) && (
+                <button
+                  onClick={handleRetry}
+                  className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+                >
+                  재도전
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 카카오톡 공유 모달 */}
+        {showShareModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-5">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">공유하기</h3>
+              <p className="text-gray-600 mb-6">
+                아래 내용을 복사하여 카카오톡 대화방에 붙여넣으세요
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={handleKakaoShare}
+                  className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+                >
+                  메시지와 링크 복사하기
+                </button>
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 수동 복사 모달 */}
+        {showCopyModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-5">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">링크 복사</h3>
+              <p className="text-gray-600 mb-4">
+                아래 링크를 선택하여 복사하세요
+              </p>
+              <input
+                ref={copyInputRef}
+                type="text"
+                value={copyText}
+                readOnly
+                className="w-full p-3 border-2 border-gray-200 rounded-xl text-sm mb-4 focus:outline-none focus:border-[#F93B4E]"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                onClick={() => setShowCopyModal(false)}
+                className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
