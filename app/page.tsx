@@ -342,8 +342,10 @@ export default function Home() {
       return '/10000.png';
     } else if (currentTime < 8) {
       return '/5000.png';
-    } else {
+    } else if (currentTime < 10) {
       return '/1000.png';
+    } else {
+      return '/500.png';
     }
   };
 
@@ -353,8 +355,10 @@ export default function Home() {
       return '지금 성공하면 만 원이에요!';
     } else if (currentTime < 8) {
       return '5천 원도 나쁘지 않아요!';
-    } else {
+    } else if (currentTime < 10) {
       return '아쉽지만 천 원이라도...';
+    } else {
+      return '오백 원도 돈이랍니다...!';
     }
   };
 
@@ -364,8 +368,10 @@ export default function Home() {
       return '만 원 리워드를 받을 수 있어요!';
     } else if (currentTime < 8) {
       return '5천 원 리워드를 받을 수 있어요!';
-    } else {
+    } else if (currentTime < 10) {
       return '천 원 리워드를 받을 수 있어요!';
+    } else {
+      return '오백원 리워드를 받을 수 있어요!';
     }
   };
 
@@ -375,8 +381,10 @@ export default function Home() {
       return '10000';
     } else if (currentTime < 8) {
       return '5000';
-    } else {
+    } else if (currentTime < 10) {
       return '1000';
+    } else {
+      return '500';
     }
   };
 
