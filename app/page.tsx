@@ -375,7 +375,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-3 md:p-5">
+    <div className={`min-h-screen bg-white flex ${gameState === 'playing' ? 'items-start pt-3 pb-1 md:items-center md:py-5' : 'items-center'} justify-center px-3 md:px-5`}>
       <div className="container mx-auto max-w-2xl w-full">
         {gameState === 'start' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 animate-fadeIn">
@@ -410,13 +410,13 @@ export default function Home() {
         )}
 
         {gameState === 'playing' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 animate-fadeIn">
-            <div className="text-center mb-6">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 pb-2 md:pb-6 animate-fadeIn">
+            <div className="text-center mb-4 md:mb-6">
               <div className="text-3xl font-bold text-[#F93B4E] mb-2">
                 {time.toFixed(2)}초
               </div>
             </div>
-            <div className="mb-6">
+            <div className="mb-2 md:mb-6">
               {/* 지폐 이미지 애니메이션 */}
               {getBillImage(time) && (
                 <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
