@@ -32,6 +32,7 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const copyInputRef = useRef<HTMLInputElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
+  const isPasteEventRef = useRef<boolean>(false);
 
   // 유저 ID 가져오기 또는 생성
   const getOrCreateUserId = useCallback(() => {
@@ -162,8 +163,8 @@ export default function Home() {
     const previousLength = input.length;
     const newLength = value.length;
 
-    // 붙여넣기 감지: 한 번에 2글자 이상 추가된 경우
-    if (newLength - previousLength >= 2) {
+    // 붙여넣기 감지: 실제 paste 이벤트가 발생했을 때만 처리
+    if (isPasteEventRef.current) {
       // 이벤트 차단
       e.preventDefault();
       e.stopPropagation();
@@ -186,10 +187,13 @@ export default function Home() {
       // 상태 초기화
       setInput('');
       setIsError(false);
+      // 플래그 리셋
+      isPasteEventRef.current = false;
       alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
       return;
     }
 
+    // 일반 입력 처리
     setInput(value);
 
     // 오타 감지
@@ -240,10 +244,19 @@ export default function Home() {
     }
   };
 
-  // 포커스 처리
+  // 포커스 처리 (iOS 키보드 자동 올리기)
   useEffect(() => {
     if (gameState === 'playing' && inputRef.current) {
-      inputRef.current.focus();
+      // iOS에서 키보드가 올라오도록 약간의 지연 추가
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          // iOS Safari에서 확실하게 포커스되도록 클릭 이벤트 시뮬레이션
+          inputRef.current.click();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [gameState]);
 
@@ -542,6 +555,14 @@ export default function Home() {
                   onInput={handleInputChange}
                   onPaste={(e) => {
                     e.preventDefault();
+                    // paste 이벤트 플래그 설정
+                    isPasteEventRef.current = true;
+                    // 값 초기화
+                    if (inputRef.current) {
+                      inputRef.current.value = '';
+                    }
+                    setInput('');
+                    setIsError(false);
                     alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
                   }}
                   onCopy={(e) => {
