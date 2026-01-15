@@ -346,6 +346,17 @@ export default function Home() {
     }
   };
 
+  // 시간에 따라 표시할 문구 결정
+  const getBillMessage = (currentTime: number): string => {
+    if (currentTime < 6) {
+      return '지금 성공하면 만 원이에요!';
+    } else if (currentTime < 8) {
+      return '5천 원도 나쁘지 않아요!';
+    } else {
+      return '아쉽지만 천 원이라도...';
+    }
+  };
+
   // 재도전
   const handleRetry = () => {
     if (!TEST_MODE && tickets <= 0) {
@@ -406,6 +417,26 @@ export default function Home() {
               </div>
             </div>
             <div className="mb-6">
+              {/* 지폐 이미지 애니메이션 */}
+              {getBillImage(time) && (
+                <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
+                  <div className="h-32 flex items-center justify-center">
+                    <img
+                      src={getBillImage(time)!}
+                      alt="지폐"
+                      className="max-h-24 md:max-h-32 w-auto"
+                      style={{
+                        filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
+                        animation: 'float 2.5s ease-in-out infinite',
+                        willChange: 'transform',
+                      }}
+                    />
+                  </div>
+                  <p className="text-sm md:text-base text-gray-600 mt-2 font-medium">
+                    {getBillMessage(time)}
+                  </p>
+                </div>
+              )}
               <p className="text-base md:text-lg font-semibold text-gray-900 mb-4 leading-relaxed text-center">
                 {currentSentence}
               </p>
@@ -452,21 +483,6 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              {/* 지폐 이미지 애니메이션 */}
-              {getBillImage(time) && (
-                <div className="relative mt-4 h-32 flex items-center justify-center overflow-visible">
-                  <img
-                    src={getBillImage(time)!}
-                    alt="지폐"
-                    className="max-h-24 md:max-h-32 w-auto"
-                    style={{
-                      filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
-                      animation: 'float 2.5s ease-in-out infinite',
-                      willChange: 'transform',
-                    }}
-                  />
-                </div>
-              )}
             </div>
           </div>
         )}
