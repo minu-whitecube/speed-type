@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "챌린저스 따라쓰기 이벤트",
-  description: "챌린저스 따라쓰기 이벤트에 도전해보세요!",
+  title: "챌린저스 따라쓰기 챌린지",
+  description: "성공하면 최대 1만 원을 드려요!",
 };
 
 export default function RootLayout({

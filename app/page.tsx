@@ -7,10 +7,6 @@ type GameState = 'start' | 'countdown' | 'playing' | 'result';
 // 랜덤으로 선택될 문장 목록
 const TARGET_SENTENCES = [
   '차앤박 더마앤서 액티브 부스트 PDRN 앰플',
-  '얼터너티브스테레오 립 포션 카라멜 글레이즈',
-  '아누아 피디알엔 히알루론산 수분 캡슐 미스트',
-  '피지오겔 사이언수티컬즈 데일리뮨 앰플 세럼',
-  '에스트라 아토베리어365 하이드로 수딩크림',
 ];
 
 // 테스트 모드: true로 설정하면 도전권 제한이 비활성화됩니다
@@ -339,6 +335,17 @@ export default function Home() {
     setShowShareModal(false);
   };
 
+  // 시간에 따라 표시할 지폐 이미지 결정
+  const getBillImage = (currentTime: number): string | null => {
+    if (currentTime < 6) {
+      return '/10000.png';
+    } else if (currentTime < 8) {
+      return '/5000.png';
+    } else {
+      return '/1000.png';
+    }
+  };
+
   // 재도전
   const handleRetry = () => {
     if (!TEST_MODE && tickets <= 0) {
@@ -399,7 +406,7 @@ export default function Home() {
               </div>
             </div>
             <div className="mb-6">
-              <p className="text-sm md:text-base font-semibold text-gray-900 mb-4 leading-relaxed text-center">
+              <p className="text-base md:text-lg font-semibold text-gray-900 mb-4 leading-relaxed text-center">
                 {currentSentence}
               </p>
               <div className="relative">
@@ -445,6 +452,21 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              {/* 지폐 이미지 애니메이션 */}
+              {getBillImage(time) && (
+                <div className="relative mt-4 h-32 flex items-center justify-center overflow-visible">
+                  <img
+                    src={getBillImage(time)!}
+                    alt="지폐"
+                    className="max-h-24 md:max-h-32 w-auto"
+                    style={{
+                      filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
+                      animation: 'float 2.5s ease-in-out infinite',
+                      willChange: 'transform',
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
