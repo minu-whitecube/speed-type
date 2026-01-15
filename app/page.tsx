@@ -24,6 +24,7 @@ export default function Home() {
   const [finalTime, setFinalTime] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [showRewardModal, setShowRewardModal] = useState(false);
   const [copyText, setCopyText] = useState('');
   const [currentSentence, setCurrentSentence] = useState<string>('');
   
@@ -346,7 +347,7 @@ export default function Home() {
     }
   };
 
-  // 시간에 따라 표시할 문구 결정
+  // 시간에 따라 표시할 문구 결정 (게임 플레이 중)
   const getBillMessage = (currentTime: number): string => {
     if (currentTime < 6) {
       return '지금 성공하면 만 원이에요!';
@@ -355,6 +356,62 @@ export default function Home() {
     } else {
       return '아쉽지만 천 원이라도...';
     }
+  };
+
+  // 시간에 따라 표시할 문구 결정 (기록 화면)
+  const getResultMessage = (currentTime: number): string => {
+    if (currentTime < 6) {
+      return '만 원 리워드를 받을 수 있어요!';
+    } else if (currentTime < 8) {
+      return '5천 원 리워드를 받을 수 있어요!';
+    } else {
+      return '천 원 리워드를 받을 수 있어요!';
+    }
+  };
+
+  // 시간에 따라 리워드 금액 결정 (숫자 형식)
+  const getReward = (currentTime: number): string => {
+    if (currentTime < 6) {
+      return '10000';
+    } else if (currentTime < 8) {
+      return '5000';
+    } else {
+      return '1000';
+    }
+  };
+
+  // 리워드 받기 링크 생성
+  const getRewardLink = (currentTime: number): string => {
+    const reward = getReward(currentTime);
+    const baseUrl = 'https://tally.so/r/NplZ6l';
+    // 사용자 요청 형식에 맞춰 &로 시작 (실제로는 ?가 맞지만 요청대로 구현)
+    const params = new URLSearchParams({
+      utm_source: 'viral',
+      utm_campaign: 'speed-type',
+      utm_content: userId || '',
+      utm_term: reward,
+    });
+    // 일반적인 URL 형식으로 수정 (?로 시작)
+    return `${baseUrl}?${params.toString()}`;
+  };
+
+  // 리워드 받기 버튼 클릭
+  const handleRewardClick = () => {
+    setShowRewardModal(true);
+  };
+
+  // 리워드 받기 확인
+  const handleRewardConfirm = () => {
+    if (finalTime !== null) {
+      const link = getRewardLink(finalTime);
+      window.open(link, '_blank');
+      setShowRewardModal(false);
+    }
+  };
+
+  // 리워드 받기 취소
+  const handleRewardCancel = () => {
+    setShowRewardModal(false);
   };
 
   // 재도전
@@ -491,23 +548,41 @@ export default function Home() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 animate-fadeIn">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                완료!
+                축하드려요!
               </h2>
+              {/* 지폐 이미지 */}
+              {getBillImage(finalTime) && (
+                <div className="mb-6 flex flex-col items-center justify-center">
+                  <img
+                    src={getBillImage(finalTime)!}
+                    alt="지폐"
+                    className="max-h-32 md:max-h-40 w-auto mb-2"
+                    style={{
+                      filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
+                    }}
+                  />
+                  <p className="text-sm text-gray-600 font-medium">
+                    {getResultMessage(finalTime)}
+                  </p>
+                </div>
+              )}
               <div className="mb-6">
                 <p className="text-sm text-gray-500 mb-2">기록</p>
                 <p className="text-4xl font-bold text-[#F93B4E]">
                   {finalTime.toFixed(2)}초
                 </p>
               </div>
-              <div className="mb-6">
-                <p className="text-sm text-gray-500 mb-2">남은 도전권</p>
-                <p className="text-2xl font-bold text-[#F93B4E]">{tickets}개</p>
-              </div>
             </div>
             <div className="space-y-3">
               <button
-                onClick={handleShare}
+                onClick={handleRewardClick}
                 className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+              >
+                리워드 받기
+              </button>
+              <button
+                onClick={handleShare}
+                className="w-full bg-blue-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-blue-600 active:scale-[0.98] transition-all duration-200"
               >
                 공유하기
               </button>
@@ -571,6 +646,38 @@ export default function Home() {
               >
                 확인
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 리워드 받기 모달 */}
+        {showRewardModal && finalTime !== null && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-5 animate-fadeIn">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">리워드 받기</h3>
+              <p className="text-gray-900 mb-2">
+                리워드는 한 번만 받을 수 있어요.
+              </p>
+              <p className="text-gray-900 mb-4">
+                이 리워드로 받으시겠어요?
+              </p>
+              <p className="text-xs text-gray-500 mb-6">
+                현재 리워드 : {getReward(finalTime)}
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={handleRewardConfirm}
+                  className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+                >
+                  네 받을게요.
+                </button>
+                <button
+                  onClick={handleRewardCancel}
+                  className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+                >
+                  아뇨, 다시 도전할래요
+                </button>
+              </div>
             </div>
           </div>
         )}
