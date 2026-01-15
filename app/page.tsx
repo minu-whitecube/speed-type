@@ -399,6 +399,15 @@ export default function Home() {
                     e.preventDefault();
                     alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
                   }}
+                  onCopy={(e) => {
+                    e.preventDefault();
+                  }}
+                  onCut={(e) => {
+                    e.preventDefault();
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                  }}
                   className={`w-full p-4 border-2 rounded-xl text-sm md:text-base resize-none focus:outline-none transition-colors relative z-10 bg-transparent ${
                     isError
                       ? 'border-red-500 bg-red-50'
@@ -410,22 +419,19 @@ export default function Home() {
                     height: 'auto',
                   }}
                 />
-                <div 
-                  className="absolute top-0 left-0 w-full p-4 text-sm md:text-base text-gray-300 pointer-events-none z-0 whitespace-pre-wrap"
-                  style={{
-                    opacity: input.length === 0 ? 1 : 0.3,
-                    fontFamily: 'inherit',
-                    lineHeight: 'inherit',
-                    letterSpacing: 'inherit',
-                  }}
-                >
-                  <span style={{ opacity: 0 }}>
-                    {input}
-                  </span>
-                  <span>
-                    {currentSentence.substring(input.length)}
-                  </span>
-                </div>
+                {input.length === 0 && (
+                  <div 
+                    className="absolute top-0 left-0 w-full p-4 text-sm md:text-base text-gray-300 pointer-events-none z-0 whitespace-pre-wrap"
+                    style={{
+                      fontFamily: 'inherit',
+                      fontSize: 'inherit',
+                      lineHeight: 'inherit',
+                      letterSpacing: 'inherit',
+                    }}
+                  >
+                    {currentSentence}
+                  </div>
+                )}
               </div>
             </div>
           </div>
