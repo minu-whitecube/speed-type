@@ -153,17 +153,37 @@ export default function Home() {
     }
   }, [gameState]);
 
-  // 입력 처리
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  // 입력 처리 (iOS Safari 호환)
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement> | React.FormEvent<HTMLTextAreaElement>) => {
     if (gameState !== 'playing') return;
 
-    const value = e.target.value;
+    const target = e.target as HTMLTextAreaElement;
+    const value = target.value;
     const previousLength = input.length;
     const newLength = value.length;
 
     // 붙여넣기 감지: 한 번에 2글자 이상 추가된 경우
     if (newLength - previousLength >= 2) {
-      // 텍스트박스 초기화
+      // 이벤트 차단
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // iOS Safari 호환을 위해 ref로 직접 DOM 조작
+      if (inputRef.current) {
+        // 즉시 값 초기화
+        inputRef.current.value = '';
+        // iOS Safari에서 포커스 유지
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+            // 추가로 값이 남아있을 경우 다시 초기화
+            if (inputRef.current.value) {
+              inputRef.current.value = '';
+            }
+          }
+        }, 0);
+      }
+      // 상태 초기화
       setInput('');
       setIsError(false);
       alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
@@ -371,7 +391,7 @@ export default function Home() {
     } else if (currentTime < 10) {
       return '천 원 리워드를 받을 수 있어요!';
     } else {
-      return '오백원 리워드를 받을 수 있어요!';
+      return '오백 원도 리워드를 받을 수 있어요!';
     }
   };
 
@@ -519,6 +539,7 @@ export default function Home() {
                   ref={inputRef}
                   value={input}
                   onChange={handleInputChange}
+                  onInput={handleInputChange}
                   onPaste={(e) => {
                     e.preventDefault();
                     alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
