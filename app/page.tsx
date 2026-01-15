@@ -436,11 +436,20 @@ export default function Home() {
       <div className="container mx-auto max-w-2xl w-full">
         {gameState === 'start' && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 animate-fadeIn">
-            <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
-              챌린저스 따라쓰기 이벤트
+            <div className="flex justify-center mb-4">
+              <img
+                src="/logo_challengers.png"
+                alt="챌린저스 로고"
+                className="h-10 md:h-10 w-auto"
+              />
+            </div>
+            <h1 className="text-3xl font-bold text-center text-[#F93B4E] mb-2">
+              따라쓰기 챌린지
             </h1>
             <p className="text-center text-gray-600 mb-8">
-              주어진 문장을 정확히 따라 써보세요!
+              주어진 문장을 정확히 따라 쓰세요.
+              <br />
+              성공하면 최대 1만 원을 드려요!
             </p>
             <div className="text-center mb-6">
               <p className="text-sm text-gray-500 mb-2">남은 도전권</p>
@@ -661,7 +670,7 @@ export default function Home() {
               <p className="text-gray-900 mb-4">
                 이 리워드로 받으시겠어요?
               </p>
-              <p className="text-xs text-gray-500 mb-6">
+              <p className="text-base text-gray-500 mb-6">
                 현재 리워드 : {getReward(finalTime)}
               </p>
               <div className="space-y-3">
@@ -669,7 +678,7 @@ export default function Home() {
                   onClick={handleRewardConfirm}
                   className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
                 >
-                  네 받을게요.
+                  네, 받을게요
                 </button>
                 <button
                   onClick={handleRewardCancel}
