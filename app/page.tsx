@@ -126,6 +126,17 @@ export default function Home() {
     setInput('');
     setTime(0);
     setIsError(false);
+
+    // iOS에서 키보드를 올리기 위해 클릭 이벤트 직후 포커스 시도
+    if (isIOS) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          // iOS에서 확실하게 작동하도록 click 이벤트도 시뮬레이션
+          inputRef.current.click();
+        }
+      }, 0);
+    }
   };
 
   // 카운트다운
@@ -789,47 +800,58 @@ ${shareUrl}`;
           </div>
         )}
 
-        {gameState === 'countdown' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
-                {countdown}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {gameState === 'playing' && (
-          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn`}>
-              <div className="text-center mb-4 md:mb-6">
-                <div className="text-3xl font-bold text-[#F93B4E] mb-2">
-                  {time.toFixed(2)}초
+        {/* countdown과 playing 상태 모두에서 textarea를 렌더링 (iOS 키보드 올리기 위해) */}
+        {(gameState === 'countdown' || gameState === 'playing') && (
+          <>
+            {/* 카운트다운 표시 */}
+            {gameState === 'countdown' && (
+              <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+                <div className="text-center">
+                  <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
+                    {countdown}
+                  </div>
                 </div>
               </div>
-              <div className="mb-2 md:mb-6">
-                {/* 지폐 이미지 애니메이션 */}
-                {getBillImage(time) && (
-                <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
-                  <div className="h-32 flex items-center justify-center">
-                    <img
-                      src={getBillImage(time)!}
-                      alt="지폐"
-                      className="max-h-24 md:max-h-32 w-auto"
-                      style={{
-                        filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
-                        animation: 'float 2.5s ease-in-out infinite',
-                        willChange: 'transform',
-                      }}
-                    />
+            )}
+
+            {/* 게임 플레이 화면 (countdown 중에는 숨김) */}
+            <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn ${gameState === 'countdown' ? 'opacity-0 h-0 overflow-hidden pointer-events-none' : ''}`}>
+              {gameState === 'playing' && (
+                <div className="text-center mb-4 md:mb-6">
+                  <div className="text-3xl font-bold text-[#F93B4E] mb-2">
+                    {time.toFixed(2)}초
                   </div>
-                  <p className="text-sm md:text-base text-gray-600 mt-2 font-medium">
-                    {getBillMessage(time)}
-                  </p>
                 </div>
               )}
-              <p className="text-base md:text-lg font-semibold text-gray-900 mb-4 leading-relaxed text-center">
-                {currentSentence}
-              </p>
+              {gameState === 'playing' && (
+                <>
+                  <div className="mb-2 md:mb-6">
+                    {/* 지폐 이미지 애니메이션 */}
+                    {getBillImage(time) && (
+                    <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
+                      <div className="h-32 flex items-center justify-center">
+                        <img
+                          src={getBillImage(time)!}
+                          alt="지폐"
+                          className="max-h-24 md:max-h-32 w-auto"
+                          style={{
+                            filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
+                            animation: 'float 2.5s ease-in-out infinite',
+                            willChange: 'transform',
+                          }}
+                        />
+                      </div>
+                      <p className="text-sm md:text-base text-gray-600 mt-2 font-medium">
+                        {getBillMessage(time)}
+                      </p>
+                    </div>
+                  )}
+                  </div>
+                  <p className="text-base md:text-lg font-semibold text-gray-900 mb-4 leading-relaxed text-center">
+                    {currentSentence}
+                  </p>
+                </>
+              )}
               <div className="relative">
                 <textarea
                   ref={inputRef}
@@ -840,6 +862,7 @@ ${shareUrl}`;
                   onTouchStart={handleIOSStart}
                   onMouseDown={handleIOSStart}
                   onClick={handleIOSStart}
+                  readOnly={gameState !== 'playing'}
                   onPaste={(e) => {
                     e.preventDefault();
                     // paste 이벤트 플래그 설정
@@ -873,7 +896,7 @@ ${shareUrl}`;
                     fontSize: '16px', // iOS Safari에서 자동 줌 방지 (16px 미만이면 줌됨)
                   }}
                 />
-                {input.length === 0 && (
+                {gameState === 'playing' && input.length === 0 && (
                   <div 
                     className="absolute top-0 left-0 w-full p-4 text-sm md:text-base text-gray-300 pointer-events-none z-0 whitespace-pre-wrap"
                     style={{
@@ -888,7 +911,7 @@ ${shareUrl}`;
                 )}
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {gameState === 'result' && finalTime !== null && (
