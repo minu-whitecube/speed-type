@@ -232,10 +232,18 @@ export default function Home() {
     }
   }, [gameState]);
 
-  // Safari 감지 (한 번만 계산)
-  const isSafari = useMemo(() => {
+  // iOS 감지 (더 정확한 방법)
+  const isIOS = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const ua = navigator.userAgent;
+    const platform = navigator.platform;
+    
+    // iOS 디바이스 감지 (더 포괄적인 방법)
+    const isIOSDevice = /iPad|iPhone|iPod/.test(ua) || 
+                       (platform === 'MacIntel' && navigator.maxTouchPoints > 1) || // iPadOS 13+
+                       /iPhone|iPad|iPod|iOS/i.test(ua);
+    
+    return isIOSDevice && !(window as any).MSStream;
   }, []);
 
   // 스탑워치 시작 함수
@@ -253,21 +261,25 @@ export default function Home() {
     }, 10);
   }, [gameState]);
 
-  // Safari에서 텍스트 박스 터치/포커스 시 스탑워치 시작 핸들러
-  const handleSafariStart = useCallback(() => {
-    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
+  // iOS에서 텍스트 박스 터치/포커스 시 스탑워치 시작 핸들러
+  const handleIOSStart = useCallback((e?: React.SyntheticEvent) => {
+    // iOS에서만 작동
+    if (!isIOS) return;
+    
+    // 게임이 진행 중이고 스탑워치가 아직 시작되지 않았을 때만
+    if (gameState === 'playing' && !isStopwatchStartedRef.current) {
       startStopwatch();
     }
-  }, [isSafari, gameState, startStopwatch]);
+  }, [isIOS, gameState, startStopwatch]);
 
-  // 스탑워치 (Safari가 아닌 경우에만 자동 시작)
+  // 스탑워치 (iOS가 아닌 경우에만 자동 시작)
   useEffect(() => {
     if (gameState === 'playing') {
-      // Safari가 아닌 경우에만 즉시 시작
-      if (!isSafari) {
+      // iOS가 아닌 경우에만 즉시 시작
+      if (!isIOS) {
         startStopwatch();
       }
-      // Safari는 텍스트 박스 터치 시 시작됨
+      // iOS는 텍스트 박스 터치 시 시작됨
 
       return () => {
         if (intervalRef.current) {
@@ -282,14 +294,51 @@ export default function Home() {
       }
       isStopwatchStartedRef.current = false;
     }
-  }, [gameState, isSafari, startStopwatch]);
+  }, [gameState, isIOS, startStopwatch]);
+
+  // iOS에서 textarea에 직접 이벤트 리스너 추가 (더 확실한 방법)
+  useEffect(() => {
+    if (!isIOS || !inputRef.current) return;
+
+    const textarea = inputRef.current;
+    
+    // iOS에서 스탑워치 시작을 위한 이벤트 리스너
+    const handleTouchStart = () => {
+      if (gameState === 'playing' && !isStopwatchStartedRef.current) {
+        startStopwatch();
+      }
+    };
+
+    const handleFocus = () => {
+      if (gameState === 'playing' && !isStopwatchStartedRef.current) {
+        startStopwatch();
+      }
+    };
+
+    const handleInput = () => {
+      if (gameState === 'playing' && !isStopwatchStartedRef.current) {
+        startStopwatch();
+      }
+    };
+
+    // 이벤트 리스너 추가
+    textarea.addEventListener('touchstart', handleTouchStart, { passive: true });
+    textarea.addEventListener('focus', handleFocus);
+    textarea.addEventListener('input', handleInput);
+
+    return () => {
+      textarea.removeEventListener('touchstart', handleTouchStart);
+      textarea.removeEventListener('focus', handleFocus);
+      textarea.removeEventListener('input', handleInput);
+    };
+  }, [isIOS, gameState, startStopwatch]);
 
   // 입력 처리 (iOS Safari 호환)
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement> | React.FormEvent<HTMLTextAreaElement>) => {
     if (gameState !== 'playing') return;
 
-    // Safari에서 첫 입력 시 스탑워치 시작
-    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
+    // iOS에서 첫 입력 시 스탑워치 시작
+    if (isIOS && !isStopwatchStartedRef.current && gameState === 'playing') {
       startStopwatch();
     }
 
@@ -720,7 +769,7 @@ ${shareUrl}`;
         )}
 
         {gameState === 'playing' && (
-          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isSafari ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn`}>
+          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn`}>
             <div className="text-center mb-4 md:mb-6">
               <div className="text-3xl font-bold text-[#F93B4E] mb-2">
                 {time.toFixed(2)}초
@@ -756,10 +805,10 @@ ${shareUrl}`;
                   value={input}
                   onChange={handleInputChange}
                   onInput={handleInputChange}
-                  onFocus={handleSafariStart}
-                  onTouchStart={handleSafariStart}
-                  onMouseDown={handleSafariStart}
-                  onClick={handleSafariStart}
+                  onFocus={handleIOSStart}
+                  onTouchStart={handleIOSStart}
+                  onMouseDown={handleIOSStart}
+                  onClick={handleIOSStart}
                   onPaste={(e) => {
                     e.preventDefault();
                     // paste 이벤트 플래그 설정
