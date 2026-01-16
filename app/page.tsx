@@ -281,6 +281,30 @@ export default function Home() {
     }
   }, [currentSentence, gameState, input]);
 
+  // 모달이 열릴 때 body 스크롤 막기 (모든 브라우저 호환)
+  useEffect(() => {
+    const isModalOpen = showShareModal || showCopyModal || showRewardModal;
+    
+    if (isModalOpen) {
+      // 현재 스크롤 위치 저장
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      // iOS Safari를 위한 추가 스타일
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        // 모달이 닫힐 때 스크롤 복원
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [showShareModal, showCopyModal, showRewardModal]);
+
   // 공유 URL 생성
   const getShareUrl = () => {
     if (typeof window === 'undefined' || !userId) return '';
@@ -290,83 +314,124 @@ export default function Home() {
   // 공유 텍스트 생성
   const getShareText = () => {
     const shareUrl = getShareUrl();
-    return `챌린저스 따라쓰기 이벤트에 도전해보세요!${shareUrl}`;
+    return `문장을 따라쓰고 1만 원을 받아가세요
+빠르게 쓸수록 보상이 더 커져요!
+${shareUrl}`;
   };
 
-  // 링크 복사
+  // 링크 복사 (모든 브라우저 호환)
   const copyLink = async (text?: string) => {
     const textToCopy = text || getShareUrl();
 
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
+    // 방법 1: Clipboard API 시도 (Chrome, Firefox, Safari 13.1+)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
         await navigator.clipboard.writeText(textToCopy);
         alert('링크가 복사되었습니다!');
         return true;
-      } else {
-        // iOS Safari fallback
-        const textarea = document.createElement('textarea');
-        textarea.value = textToCopy;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        textarea.setSelectionRange(0, 99999);
-        const success = document.execCommand('copy');
-        document.body.removeChild(textarea);
-        
-        if (success) {
-          alert('링크가 복사되었습니다!');
-          return true;
-        }
+      } catch (error) {
+        // Clipboard API 실패 시 fallback으로 진행
+        console.log('Clipboard API failed, trying fallback:', error);
       }
-    } catch (error) {
-      console.error('Failed to copy:', error);
     }
 
-    // 수동 복사 모달 표시
+    // 방법 2: execCommand fallback (구형 브라우저, iOS Safari)
+    try {
+      // iOS Safari를 위한 개선된 방법
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      
+      // iOS Safari에서 선택이 잘 되도록 스타일 조정
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      textarea.style.opacity = '0';
+      textarea.style.pointerEvents = 'none';
+      textarea.setAttribute('readonly', '');
+      textarea.setAttribute('aria-hidden', 'true');
+      
+      document.body.appendChild(textarea);
+      
+      // iOS Safari에서 작동하도록 다양한 방법 시도
+      if (navigator.userAgent.match(/ipad|iphone/i)) {
+        // iOS에서는 contentEditable div 사용
+        const range = document.createRange();
+        range.selectNodeContents(textarea);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        textarea.setSelectionRange(0, 99999);
+      } else {
+        textarea.select();
+        textarea.setSelectionRange(0, 99999);
+      }
+      
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      if (success) {
+        alert('링크가 복사되었습니다!');
+        return true;
+      }
+    } catch (error) {
+      console.error('execCommand copy failed:', error);
+    }
+
+    // 방법 3: 수동 복사 모달 표시 (모든 방법 실패 시)
     setCopyText(textToCopy);
     setShowCopyModal(true);
     setTimeout(() => {
-      copyInputRef.current?.select();
+      if (copyInputRef.current) {
+        copyInputRef.current.select();
+        copyInputRef.current.setSelectionRange(0, 99999);
+        // iOS Safari를 위한 추가 시도
+        if (navigator.userAgent.match(/ipad|iphone/i)) {
+          copyInputRef.current.focus();
+        }
+      }
     }, 100);
     return false;
   };
 
-  // 공유 처리
+  // 공유 처리 (네이티브 공유 시트 우선 사용)
   const handleShare = async () => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isKakaoTalk = typeof navigator !== 'undefined' && /KAKAOTALK|KAKAO/i.test(navigator.userAgent);
+    const shareUrl = getShareUrl();
+    const shareText = getShareText();
 
-    if (isKakaoTalk) {
-      // 카카오톡 브라우저에서는 커스텀 모달 표시
-      setShowShareModal(true);
-      return;
-    }
-
-    if (isIOS && navigator.share) {
+    // Web Share API 지원 확인 (모바일 iOS Safari, Android Chrome 등)
+    if (navigator.share) {
       try {
         await navigator.share({
-          title: '챌린저스 따라쓰기 이벤트',
-          text: getShareText(),
+          title: '챌린저스 따라쓰기 챌린지',
+          text: shareText,
+          url: shareUrl,
         });
+        // 공유 성공 (사용자가 공유 채널 선택 완료)
         return;
       } catch (error) {
-        // 사용자가 취소한 경우
-        if ((error as Error).name !== 'AbortError') {
-          console.error('Share failed:', error);
+        // 사용자가 공유를 취소한 경우 (AbortError)
+        if ((error as Error).name === 'AbortError') {
+          return; // 사용자가 취소했으므로 아무것도 하지 않음
         }
+        // 다른 에러 발생 시 fallback으로 진행
+        console.error('Share failed:', error);
       }
     }
 
-    // 기본: 클립보드 복사
-    copyLink();
+    // Web Share API를 지원하지 않거나 실패한 경우: 커스텀 모달 표시
+    setShowShareModal(true);
   };
 
-  // 카카오톡 공유 모달에서 메시지와 링크 복사
-  const handleKakaoShare = () => {
+  // 공유 모달에서 메시지와 링크 복사
+  const handleKakaoShare = async () => {
     const shareText = getShareText();
-    copyLink(shareText);
-    setShowShareModal(false);
+    const success = await copyLink(shareText);
+    // 복사 성공 시에만 모달 닫기 (실패 시 수동 복사 모달이 표시됨)
+    if (success) {
+      setShowShareModal(false);
+    }
   };
 
   // 시간에 따라 표시할 지폐 이미지 결정
@@ -657,20 +722,41 @@ export default function Home() {
           </div>
         )}
 
-        {/* 카카오톡 공유 모달 */}
+        {/* 공유 모달 */}
         {showShareModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-5">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-5"
+            onClick={(e) => {
+              // 모달 외부 클릭 시 닫기
+              if (e.target === e.currentTarget) {
+                setShowShareModal(false);
+              }
+            }}
+            style={{
+              // iOS Safari에서 모달이 제대로 표시되도록 보장
+              WebkitOverflowScrolling: 'touch',
+              position: 'fixed',
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                // iOS Safari에서 모달이 스크롤 가능하도록
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
               <h3 className="text-xl font-bold text-gray-900 mb-4">공유하기</h3>
               <p className="text-gray-600 mb-6">
-                아래 내용을 복사하여 카카오톡 대화방에 붙여넣으세요
+                아래 내용을 복사하여 공유하세요
               </p>
               <div className="space-y-3">
                 <button
                   onClick={handleKakaoShare}
-                  className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+                  className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  메시지와 링크 복사하기
+                  링크 복사하기
                 </button>
                 <button
                   onClick={() => setShowShareModal(false)}
@@ -685,8 +771,29 @@ export default function Home() {
 
         {/* 수동 복사 모달 */}
         {showCopyModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-5">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-5"
+            onClick={(e) => {
+              // 모달 외부 클릭 시 닫기
+              if (e.target === e.currentTarget) {
+                setShowCopyModal(false);
+              }
+            }}
+            style={{
+              // iOS Safari에서 모달이 제대로 표시되도록 보장
+              WebkitOverflowScrolling: 'touch',
+              position: 'fixed',
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                // iOS Safari에서 모달이 스크롤 가능하도록
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
               <h3 className="text-xl font-bold text-gray-900 mb-4">링크 복사</h3>
               <p className="text-gray-600 mb-4">
                 아래 링크를 선택하여 복사하세요
@@ -697,7 +804,16 @@ export default function Home() {
                 value={copyText}
                 readOnly
                 className="w-full p-3 border-2 border-gray-200 rounded-xl text-sm mb-4 focus:outline-none focus:border-[#F93B4E]"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
+                onClick={(e) => {
+                  const target = e.target as HTMLInputElement;
+                  target.select();
+                  target.setSelectionRange(0, 99999);
+                }}
+                onFocus={(e) => {
+                  // iOS Safari에서 포커스 시 자동 선택
+                  e.target.select();
+                  e.target.setSelectionRange(0, 99999);
+                }}
               />
               <button
                 onClick={() => setShowCopyModal(false)}
@@ -711,8 +827,29 @@ export default function Home() {
 
         {/* 리워드 받기 모달 */}
         {showRewardModal && finalTime !== null && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-5 animate-fadeIn">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-5 animate-fadeIn"
+            onClick={(e) => {
+              // 모달 외부 클릭 시 닫기
+              if (e.target === e.currentTarget) {
+                setShowRewardModal(false);
+              }
+            }}
+            style={{
+              // iOS Safari에서 모달이 제대로 표시되도록 보장
+              WebkitOverflowScrolling: 'touch',
+              position: 'fixed',
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                // iOS Safari에서 모달이 스크롤 가능하도록
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
               <h3 className="text-xl font-bold text-gray-900 mb-4">리워드 받기</h3>
               <p className="text-gray-900 mb-2">
                 리워드는 한 번만 받을 수 있어요.

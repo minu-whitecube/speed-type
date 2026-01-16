@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .insert({
         user_id: userId,
-        tickets: 1,
+        tickets: 3,
         is_completed: false,
       })
       .select()
