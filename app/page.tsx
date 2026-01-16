@@ -139,6 +139,92 @@ export default function Home() {
     }
   }, [gameState]);
 
+  // 카운트다운이 끝나고 게임이 시작될 때 포커스 준비
+  useEffect(() => {
+    if (gameState === 'playing' && inputRef.current) {
+      const textarea = inputRef.current;
+      
+      // iOS Safari 감지
+      const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+                          !(window as any).MSStream;
+      
+      // 브라우저별 포커스 처리
+      const attemptFocus = () => {
+        if (!textarea) return;
+        
+        try {
+          if (isIOSSafari) {
+            // iOS Safari 전용 트릭: readOnly를 잠깐 설정했다가 해제
+            textarea.setAttribute('readonly', 'readonly');
+            textarea.focus();
+            
+            setTimeout(() => {
+              if (textarea) {
+                textarea.removeAttribute('readonly');
+                textarea.focus();
+                
+                // 추가 시도
+                setTimeout(() => {
+                  if (textarea) {
+                    textarea.focus();
+                    textarea.click();
+                  }
+                }, 10);
+              }
+            }, 10);
+          } else {
+            // 안드로이드 Chrome 및 기타 브라우저: 간단한 focus
+            textarea.focus();
+          }
+        } catch (e) {
+          console.log('Focus attempt error:', e);
+        }
+      };
+      
+      // 즉시 시도
+      attemptFocus();
+      
+      // iOS Safari의 경우 여러 타이밍에 재시도
+      // 안드로이드 Chrome 등은 한 번만 시도해도 충분
+      const timers: NodeJS.Timeout[] = [];
+      
+      if (isIOSSafari) {
+        timers.push(
+          setTimeout(attemptFocus, 50),
+          setTimeout(attemptFocus, 100),
+          setTimeout(attemptFocus, 200),
+          setTimeout(() => {
+            if (textarea) {
+              try {
+                textarea.focus();
+                textarea.click();
+              } catch (e) {
+                console.log('Final focus error:', e);
+              }
+            }
+          }, 300)
+        );
+      } else {
+        // 안드로이드 Chrome 등: 추가 시도 (간단하게)
+        timers.push(
+          setTimeout(() => {
+            if (textarea) {
+              try {
+                textarea.focus();
+              } catch (e) {
+                console.log('Focus retry error:', e);
+              }
+            }
+          }, 100)
+        );
+      }
+      
+      return () => {
+        timers.forEach(timer => clearTimeout(timer));
+      };
+    }
+  }, [gameState]);
+
   // 스탑워치
   useEffect(() => {
     if (gameState === 'playing') {
@@ -244,59 +330,6 @@ export default function Home() {
     }
   };
 
-  // 포커스 처리 (iOS 키보드 자동 올리기)
-  useEffect(() => {
-    if (gameState === 'playing' && inputRef.current) {
-      const textarea = inputRef.current;
-      
-      // iOS Safari에서 키보드를 올리기 위한 여러 방법 시도
-      const focusTextarea = () => {
-        if (!textarea) return;
-        
-        // iOS Safari 트릭: readOnly를 잠깐 설정했다가 해제하면 키보드가 올라옴
-        textarea.setAttribute('readonly', 'readonly');
-        textarea.style.pointerEvents = 'none';
-        
-        // 즉시 포커스 시도
-        textarea.focus();
-        
-        // iOS Safari를 위한 추가 트릭
-        setTimeout(() => {
-          if (textarea) {
-            textarea.removeAttribute('readonly');
-            textarea.style.pointerEvents = 'auto';
-            textarea.focus();
-            
-            // iOS에서 확실하게 작동하도록 여러 번 시도
-            setTimeout(() => {
-              if (textarea) {
-                textarea.focus();
-                // iOS Safari에서 클릭 이벤트도 시뮬레이션
-                textarea.click();
-              }
-            }, 50);
-          }
-        }, 10);
-      };
-      
-      // 카운트다운이 끝나고 게임이 시작되면 즉시 포커스
-      // 여러 타이밍에 시도하여 확실하게 작동하도록
-      focusTextarea();
-      
-      const timer1 = setTimeout(() => {
-        focusTextarea();
-      }, 50);
-      
-      const timer2 = setTimeout(() => {
-        focusTextarea();
-      }, 150);
-      
-      return () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-      };
-    }
-  }, [gameState]);
 
   // 텍스트 박스 높이를 텍스트에 맞게 조정
   useEffect(() => {
@@ -442,16 +475,28 @@ ${shareUrl}`;
   // 공유 처리 (네이티브 공유 시트 우선 사용)
   const handleShare = async () => {
     const shareUrl = getShareUrl();
-    const shareText = getShareTextWithoutUrl(); // URL 제외한 텍스트만 사용
+    
+    // Safari 감지 (iOS Safari, macOS Safari)
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || 
+                     /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    // Safari의 경우 text에 URL을 포함시켜야 복사 시 링크도 함께 복사됨
+    // 다른 브라우저는 text와 url을 별도로 전달 (플랫폼이 자동으로 처리)
+    const shareText = isSafari ? getShareText() : getShareTextWithoutUrl();
+    const shareData: { title: string; text: string; url?: string } = {
+      title: '챌린저스 따라쓰기 챌린지',
+      text: shareText,
+    };
+    
+    // Safari가 아닌 경우에만 url을 별도로 전달
+    if (!isSafari) {
+      shareData.url = shareUrl;
+    }
 
     // Web Share API 지원 확인 (모바일 iOS Safari, Android Chrome 등)
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: '챌린저스 따라쓰기 챌린지',
-          text: shareText,
-          url: shareUrl, // URL은 별도로 전달 (플랫폼이 자동으로 처리)
-        });
+        await navigator.share(shareData);
         // 공유 성공 (사용자가 공유 채널 선택 완료)
         return;
       } catch (error) {
