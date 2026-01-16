@@ -10,7 +10,7 @@ const TARGET_SENTENCES = [
 ];
 
 // 테스트 모드: true로 설정하면 도전권 제한이 비활성화됩니다
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>('start');
@@ -911,14 +911,12 @@ ${shareUrl}`;
               >
                 공유하기
               </button>
-              {(TEST_MODE || tickets > 0) && (
-                <button
-                  onClick={handleRetry}
-                  className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
-                >
-                  재도전
-                </button>
-              )}
+              <button
+                onClick={handleRetry}
+                className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+              >
+                재도전
+              </button>
             </div>
           </div>
         )}
