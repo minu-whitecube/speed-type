@@ -126,6 +126,17 @@ export default function Home() {
     setInput('');
     setTime(0);
     setIsError(false);
+
+    // [핵심] 클릭 이벤트 직후에 바로 포커스를 시도합니다.
+    // iOS는 사용자 액션 체인 내에서만 focus()를 허용하므로,
+    // setTimeout(0)을 사용하여 현재 이벤트 루프에서 즉시 실행되도록 합니다.
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        // iOS에서 확실하게 작동하도록 click 이벤트도 시뮬레이션
+        inputRef.current.click();
+      }
+    }, 0);
   };
 
   // 카운트다운
@@ -758,26 +769,32 @@ ${shareUrl}`;
           </div>
         )}
 
-        {gameState === 'countdown' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
-                {countdown}
+        {/* [수정] countdown과 playing 상태 모두에서 textarea를 렌더링합니다.
+          그래야 시작 버튼을 누르자마자 focus를 잡을 수 있습니다.
+        */}
+        {(gameState === 'countdown' || gameState === 'playing') && (
+          <>
+            {/* 카운트다운 표시 (playing일 때는 숨김) */}
+            {gameState === 'countdown' && (
+              <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+                <div className="text-center">
+                  <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
+                    {countdown}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {gameState === 'playing' && (
-          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn`}>
-            <div className="text-center mb-4 md:mb-6">
-              <div className="text-3xl font-bold text-[#F93B4E] mb-2">
-                {time.toFixed(2)}초
+            {/* 게임 플레이 화면 (countdown 중에는 숨김) */}
+            <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn ${gameState === 'countdown' ? 'opacity-0 h-0 overflow-hidden pointer-events-none' : ''}`}>
+              <div className="text-center mb-4 md:mb-6">
+                <div className="text-3xl font-bold text-[#F93B4E] mb-2">
+                  {time.toFixed(2)}초
+                </div>
               </div>
-            </div>
-            <div className="mb-2 md:mb-6">
-              {/* 지폐 이미지 애니메이션 */}
-              {getBillImage(time) && (
+              <div className="mb-2 md:mb-6">
+                {/* 지폐 이미지 애니메이션 */}
+                {getBillImage(time) && (
                 <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
                   <div className="h-32 flex items-center justify-center">
                     <img
@@ -809,6 +826,8 @@ ${shareUrl}`;
                   onTouchStart={handleIOSStart}
                   onMouseDown={handleIOSStart}
                   onClick={handleIOSStart}
+                  // 카운트다운 중에는 입력을 막아 키보드만 올라오게 유지
+                  readOnly={gameState === 'countdown'}
                   onPaste={(e) => {
                     e.preventDefault();
                     // paste 이벤트 플래그 설정
@@ -839,6 +858,7 @@ ${shareUrl}`;
                     color: isError ? '#ef4444' : '#111827',
                     minHeight: 'auto',
                     height: 'auto',
+                    fontSize: '16px', // iOS Safari에서 자동 줌 방지 (16px 미만이면 줌됨)
                   }}
                 />
                 {input.length === 0 && (
@@ -857,6 +877,7 @@ ${shareUrl}`;
               </div>
             </div>
           </div>
+          </>
         )}
 
         {gameState === 'result' && finalTime !== null && (
