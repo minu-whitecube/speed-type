@@ -33,6 +33,7 @@ export default function Home() {
   const copyInputRef = useRef<HTMLInputElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
   const isPasteEventRef = useRef<boolean>(false);
+  const isStopwatchStartedRef = useRef<boolean>(false);
 
   // 유저 ID 가져오기 또는 생성
   const getOrCreateUserId = useCallback(() => {
@@ -113,6 +114,12 @@ export default function Home() {
     const randomIndex = Math.floor(Math.random() * TARGET_SENTENCES.length);
     const selectedSentence = TARGET_SENTENCES[randomIndex];
     setCurrentSentence(selectedSentence);
+
+    // 스탑워치 리셋
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    isStopwatchStartedRef.current = false;
 
     setGameState('countdown');
     setCountdown(3);
@@ -225,24 +232,52 @@ export default function Home() {
     }
   }, [gameState]);
 
-  // 스탑워치
+  // Safari 감지
+  const isSafari = typeof window !== 'undefined' && 
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+
+  // 스탑워치 시작 함수
+  const startStopwatch = useCallback(() => {
+    if (isStopwatchStartedRef.current || gameState !== 'playing') return;
+    
+    isStopwatchStartedRef.current = true;
+    intervalRef.current = setInterval(() => {
+      setTime((prev) => prev + 0.01);
+    }, 10);
+  }, [gameState]);
+
+  // 스탑워치 (Safari가 아닌 경우에만 자동 시작)
   useEffect(() => {
     if (gameState === 'playing') {
-      intervalRef.current = setInterval(() => {
-        setTime((prev) => prev + 0.01);
-      }, 10);
+      // Safari가 아닌 경우에만 즉시 시작
+      if (!isSafari) {
+        startStopwatch();
+      }
+      // Safari는 텍스트 박스 터치 시 시작됨
 
       return () => {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
         }
+        isStopwatchStartedRef.current = false;
       };
+    } else {
+      // 게임이 끝나면 스탑워치 리셋
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      isStopwatchStartedRef.current = false;
     }
-  }, [gameState]);
+  }, [gameState, isSafari, startStopwatch]);
 
   // 입력 처리 (iOS Safari 호환)
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement> | React.FormEvent<HTMLTextAreaElement>) => {
     if (gameState !== 'playing') return;
+
+    // Safari에서 첫 입력 시 스탑워치 시작
+    if (isSafari && !isStopwatchStartedRef.current) {
+      startStopwatch();
+    }
 
     const target = e.target as HTMLTextAreaElement;
     const value = target.value;
@@ -671,7 +706,7 @@ ${shareUrl}`;
         )}
 
         {gameState === 'playing' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 pb-2 md:pb-6 animate-fadeIn">
+          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isSafari ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn`}>
             <div className="text-center mb-4 md:mb-6">
               <div className="text-3xl font-bold text-[#F93B4E] mb-2">
                 {time.toFixed(2)}초
@@ -707,6 +742,18 @@ ${shareUrl}`;
                   value={input}
                   onChange={handleInputChange}
                   onInput={handleInputChange}
+                  onFocus={() => {
+                    // Safari에서 포커스 시 스탑워치 시작
+                    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
+                      startStopwatch();
+                    }
+                  }}
+                  onTouchStart={() => {
+                    // Safari에서 터치 시 스탑워치 시작
+                    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
+                      startStopwatch();
+                    }
+                  }}
                   onPaste={(e) => {
                     e.preventDefault();
                     // paste 이벤트 플래그 설정
