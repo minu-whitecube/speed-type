@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const { userId, finalTime } = await request.json();
 
     if (!userId) {
       return NextResponse.json(
@@ -12,9 +12,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 업데이트할 데이터 객체 생성
+    const updateData: { is_completed: boolean; last_time?: number } = {
+      is_completed: true,
+    };
+
+    // finalTime이 제공된 경우에만 last_time 업데이트
+    if (finalTime !== undefined && finalTime !== null) {
+      updateData.last_time = parseFloat(finalTime);
+    }
+
     const { data, error } = await supabase
       .from('users')
-      .update({ is_completed: true })
+      .update(updateData)
       .eq('user_id', userId)
       .select()
       .single();
@@ -29,6 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       isCompleted: data.is_completed,
+      lastTime: data.last_time,
     });
   } catch (error) {
     return NextResponse.json(

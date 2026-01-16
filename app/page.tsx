@@ -12,6 +12,30 @@ const TARGET_SENTENCES = [
 // 테스트 모드: true로 설정하면 도전권 제한이 비활성화됩니다
 const TEST_MODE = false;
 
+// 데스크탑/태블릿 접근 제한: true로 설정하면 모바일 환경에서만 플레이 가능합니다
+const DESKTOP_ACCESS_RESTRICTED = true;
+
+// 모바일 환경 감지 함수
+const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+  
+  // 모바일 디바이스 패턴
+  const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
+  
+  // 태블릿은 제외 (iPad, Android 태블릿 등)
+  const tabletRegex = /ipad|android(?!.*mobile)|tablet|playbook|silk/i;
+  
+  // 태블릿이면 false 반환
+  if (tabletRegex.test(userAgent)) {
+    return false;
+  }
+  
+  // 모바일이면 true 반환
+  return mobileRegex.test(userAgent);
+};
+
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>('start');
   const [countdown, setCountdown] = useState(3);
@@ -36,6 +60,12 @@ export default function Home() {
   const placeholderRef = useRef<HTMLDivElement>(null);
   const isPasteEventRef = useRef<boolean>(false);
   const isStopwatchStartedRef = useRef<boolean>(false);
+
+  // 접근 제한 체크
+  const isAccessRestricted = useMemo(() => {
+    if (!DESKTOP_ACCESS_RESTRICTED) return false;
+    return !isMobileDevice();
+  }, []);
 
   // 유저 ID 가져오기 또는 생성
   const getOrCreateUserId = useCallback(() => {
@@ -480,11 +510,11 @@ export default function Home() {
           });
         }
 
-        // 완료 상태 업데이트
+        // 완료 상태 업데이트 및 기록 저장
         await fetch('/api/user/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
+          body: JSON.stringify({ userId, finalTime: time }),
         }).catch(() => {
           // API가 없어도 무시
         });
@@ -816,6 +846,26 @@ ${shareUrl}`;
     setFinalTime(null);
     setIsError(false);
   };
+
+  // 접근 제한 시 메시지만 표시
+  if (isAccessRestricted) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-3">
+        <div className="container mx-auto max-w-2xl w-full text-center">
+          <div className="flex justify-center mb-4">
+            <img
+              src="/logo_challengers.png"
+              alt="챌린저스 로고"
+              className="h-10 md:h-10 w-auto"
+            />
+          </div>
+          <p className="text-lg text-gray-700">
+            따라쓰기 챌린지는 모바일 환경에서만 플레이 할 수 있어요.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen bg-white flex ${gameState === 'playing' ? 'items-start pt-3 pb-1 md:items-center md:py-5' : 'items-center'} justify-center px-3 md:px-5`}>

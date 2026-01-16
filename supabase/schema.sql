@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   user_id TEXT PRIMARY KEY,
   tickets INTEGER NOT NULL DEFAULT 1,
   is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  last_time NUMERIC(10, 2), -- 마지막 게임 성공 기록 (초 단위, 소수점 2자리)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
