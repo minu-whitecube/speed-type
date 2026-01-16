@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 type GameState = 'start' | 'countdown' | 'playing' | 'result';
 
@@ -232,19 +232,33 @@ export default function Home() {
     }
   }, [gameState]);
 
-  // Safari 감지
-  const isSafari = typeof window !== 'undefined' && 
-    (/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+  // Safari 감지 (한 번만 계산)
+  const isSafari = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  }, []);
 
   // 스탑워치 시작 함수
   const startStopwatch = useCallback(() => {
-    if (isStopwatchStartedRef.current || gameState !== 'playing') return;
+    if (isStopwatchStartedRef.current) {
+      return; // 이미 시작됨
+    }
+    if (gameState !== 'playing') {
+      return; // 게임이 진행 중이 아님
+    }
     
     isStopwatchStartedRef.current = true;
     intervalRef.current = setInterval(() => {
       setTime((prev) => prev + 0.01);
     }, 10);
   }, [gameState]);
+
+  // Safari에서 텍스트 박스 터치/포커스 시 스탑워치 시작 핸들러
+  const handleSafariStart = useCallback(() => {
+    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
+      startStopwatch();
+    }
+  }, [isSafari, gameState, startStopwatch]);
 
   // 스탑워치 (Safari가 아닌 경우에만 자동 시작)
   useEffect(() => {
@@ -275,7 +289,7 @@ export default function Home() {
     if (gameState !== 'playing') return;
 
     // Safari에서 첫 입력 시 스탑워치 시작
-    if (isSafari && !isStopwatchStartedRef.current) {
+    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
       startStopwatch();
     }
 
@@ -742,18 +756,10 @@ ${shareUrl}`;
                   value={input}
                   onChange={handleInputChange}
                   onInput={handleInputChange}
-                  onFocus={() => {
-                    // Safari에서 포커스 시 스탑워치 시작
-                    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
-                      startStopwatch();
-                    }
-                  }}
-                  onTouchStart={() => {
-                    // Safari에서 터치 시 스탑워치 시작
-                    if (isSafari && !isStopwatchStartedRef.current && gameState === 'playing') {
-                      startStopwatch();
-                    }
-                  }}
+                  onFocus={handleSafariStart}
+                  onTouchStart={handleSafariStart}
+                  onMouseDown={handleSafariStart}
+                  onClick={handleSafariStart}
                   onPaste={(e) => {
                     e.preventDefault();
                     // paste 이벤트 플래그 설정
