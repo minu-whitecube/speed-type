@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -11,6 +11,15 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// iOS Safari 하단 여백 문제 해결을 위한 viewport 설정
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover", // iOS에서 화면을 꽉 채워 하단 여백 제거
+};
 
 export const metadata: Metadata = {
   title: "챌린저스 따라쓰기 챌린지",
