@@ -247,16 +247,54 @@ export default function Home() {
   // 포커스 처리 (iOS 키보드 자동 올리기)
   useEffect(() => {
     if (gameState === 'playing' && inputRef.current) {
-      // iOS에서 키보드가 올라오도록 약간의 지연 추가
-      const timer = setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          // iOS Safari에서 확실하게 포커스되도록 클릭 이벤트 시뮬레이션
-          inputRef.current.click();
-        }
-      }, 100);
+      const textarea = inputRef.current;
       
-      return () => clearTimeout(timer);
+      // iOS Safari에서 키보드를 올리기 위한 여러 방법 시도
+      const focusTextarea = () => {
+        if (!textarea) return;
+        
+        // iOS Safari 트릭: readOnly를 잠깐 설정했다가 해제하면 키보드가 올라옴
+        textarea.setAttribute('readonly', 'readonly');
+        textarea.style.pointerEvents = 'none';
+        
+        // 즉시 포커스 시도
+        textarea.focus();
+        
+        // iOS Safari를 위한 추가 트릭
+        setTimeout(() => {
+          if (textarea) {
+            textarea.removeAttribute('readonly');
+            textarea.style.pointerEvents = 'auto';
+            textarea.focus();
+            
+            // iOS에서 확실하게 작동하도록 여러 번 시도
+            setTimeout(() => {
+              if (textarea) {
+                textarea.focus();
+                // iOS Safari에서 클릭 이벤트도 시뮬레이션
+                textarea.click();
+              }
+            }, 50);
+          }
+        }, 10);
+      };
+      
+      // 카운트다운이 끝나고 게임이 시작되면 즉시 포커스
+      // 여러 타이밍에 시도하여 확실하게 작동하도록
+      focusTextarea();
+      
+      const timer1 = setTimeout(() => {
+        focusTextarea();
+      }, 50);
+      
+      const timer2 = setTimeout(() => {
+        focusTextarea();
+      }, 150);
+      
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
     }
   }, [gameState]);
 
@@ -311,12 +349,18 @@ export default function Home() {
     return `${window.location.origin}?ref=${userId}`;
   };
 
-  // 공유 텍스트 생성
+  // 공유 텍스트 생성 (URL 포함 - 복사용)
   const getShareText = () => {
     const shareUrl = getShareUrl();
     return `문장을 따라쓰고 1만 원을 받아가세요
 빠르게 쓸수록 보상이 더 커져요!
 ${shareUrl}`;
+  };
+
+  // 공유 텍스트 생성 (URL 제외 - 네이티브 공유 시트용)
+  const getShareTextWithoutUrl = () => {
+    return `문장을 따라쓰고 1만 원을 받아가세요
+빠르게 쓸수록 보상이 더 커져요!`;
   };
 
   // 링크 복사 (모든 브라우저 호환)
@@ -398,7 +442,7 @@ ${shareUrl}`;
   // 공유 처리 (네이티브 공유 시트 우선 사용)
   const handleShare = async () => {
     const shareUrl = getShareUrl();
-    const shareText = getShareText();
+    const shareText = getShareTextWithoutUrl(); // URL 제외한 텍스트만 사용
 
     // Web Share API 지원 확인 (모바일 iOS Safari, Android Chrome 등)
     if (navigator.share) {
@@ -406,7 +450,7 @@ ${shareUrl}`;
         await navigator.share({
           title: '챌린저스 따라쓰기 챌린지',
           text: shareText,
-          url: shareUrl,
+          url: shareUrl, // URL은 별도로 전달 (플랫폼이 자동으로 처리)
         });
         // 공유 성공 (사용자가 공유 채널 선택 완료)
         return;
