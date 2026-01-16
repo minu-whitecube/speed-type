@@ -213,6 +213,25 @@ export default function Home() {
     if (gameState === 'playing' && !isStopwatchStartedRef.current) {
       startStopwatch();
     }
+    
+    // iOS에서 키보드가 올라올 때 스크롤 방지
+    // 현재 스크롤 위치 저장 후 복원
+    const scrollY = window.scrollY;
+    const scrollX = window.scrollX;
+    
+    // 키보드가 올라온 후 스크롤 위치 복원 (여러 타이밍에 시도)
+    requestAnimationFrame(() => {
+      window.scrollTo(scrollX, scrollY);
+    });
+    setTimeout(() => {
+      window.scrollTo(scrollX, scrollY);
+    }, 50);
+    setTimeout(() => {
+      window.scrollTo(scrollX, scrollY);
+    }, 100);
+    setTimeout(() => {
+      window.scrollTo(scrollX, scrollY);
+    }, 300);
   }, [isIOS, gameState, startStopwatch]);
 
   // 스탑워치 (iOS가 아닌 경우에만 자동 시작)
@@ -245,17 +264,38 @@ export default function Home() {
 
     const textarea = inputRef.current;
     
+    // 스크롤 위치 복원 함수
+    const preventScrollOnKeyboard = () => {
+      const scrollY = window.scrollY;
+      const scrollX = window.scrollX;
+      
+      requestAnimationFrame(() => {
+        window.scrollTo(scrollX, scrollY);
+      });
+      setTimeout(() => {
+        window.scrollTo(scrollX, scrollY);
+      }, 50);
+      setTimeout(() => {
+        window.scrollTo(scrollX, scrollY);
+      }, 100);
+      setTimeout(() => {
+        window.scrollTo(scrollX, scrollY);
+      }, 300);
+    };
+    
     // iOS에서 스탑워치 시작을 위한 이벤트 리스너
     const handleTouchStart = () => {
       if (gameState === 'playing' && !isStopwatchStartedRef.current) {
         startStopwatch();
       }
+      preventScrollOnKeyboard();
     };
 
     const handleFocus = () => {
       if (gameState === 'playing' && !isStopwatchStartedRef.current) {
         startStopwatch();
       }
+      preventScrollOnKeyboard();
     };
 
     const handleInput = () => {
