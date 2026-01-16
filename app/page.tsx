@@ -126,17 +126,6 @@ export default function Home() {
     setInput('');
     setTime(0);
     setIsError(false);
-
-    // iOS에서 키보드를 올리기 위해 클릭 이벤트 직후 포커스 시도
-    if (isIOS) {
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          // iOS에서 확실하게 작동하도록 click 이벤트도 시뮬레이션
-          inputRef.current.click();
-        }
-      }, 0);
-    }
   };
 
   // 카운트다운
@@ -154,92 +143,6 @@ export default function Home() {
       }, 1000);
 
       return () => clearInterval(timer);
-    }
-  }, [gameState]);
-
-  // 카운트다운이 끝나고 게임이 시작될 때 포커스 준비
-  useEffect(() => {
-    if (gameState === 'playing' && inputRef.current) {
-      const textarea = inputRef.current;
-      
-      // iOS Safari 감지
-      const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-                          !(window as any).MSStream;
-      
-      // 브라우저별 포커스 처리
-      const attemptFocus = () => {
-        if (!textarea) return;
-        
-        try {
-          if (isIOSSafari) {
-            // iOS Safari 전용 트릭: readOnly를 잠깐 설정했다가 해제
-            textarea.setAttribute('readonly', 'readonly');
-            textarea.focus();
-            
-            setTimeout(() => {
-              if (textarea) {
-                textarea.removeAttribute('readonly');
-                textarea.focus();
-                
-                // 추가 시도
-                setTimeout(() => {
-                  if (textarea) {
-                    textarea.focus();
-                    textarea.click();
-                  }
-                }, 10);
-              }
-            }, 10);
-          } else {
-            // 안드로이드 Chrome 및 기타 브라우저: 간단한 focus
-            textarea.focus();
-          }
-        } catch (e) {
-          console.log('Focus attempt error:', e);
-        }
-      };
-      
-      // 즉시 시도
-      attemptFocus();
-      
-      // iOS Safari의 경우 여러 타이밍에 재시도
-      // 안드로이드 Chrome 등은 한 번만 시도해도 충분
-      const timers: NodeJS.Timeout[] = [];
-      
-      if (isIOSSafari) {
-        timers.push(
-          setTimeout(attemptFocus, 50),
-          setTimeout(attemptFocus, 100),
-          setTimeout(attemptFocus, 200),
-          setTimeout(() => {
-            if (textarea) {
-              try {
-                textarea.focus();
-                textarea.click();
-              } catch (e) {
-                console.log('Final focus error:', e);
-              }
-            }
-          }, 300)
-        );
-      } else {
-        // 안드로이드 Chrome 등: 추가 시도 (간단하게)
-        timers.push(
-          setTimeout(() => {
-            if (textarea) {
-              try {
-                textarea.focus();
-              } catch (e) {
-                console.log('Focus retry error:', e);
-              }
-            }
-          }, 100)
-        );
-      }
-      
-      return () => {
-        timers.forEach(timer => clearTimeout(timer));
-      };
     }
   }, [gameState]);
 
@@ -263,6 +166,28 @@ export default function Home() {
     const ua = navigator.userAgent;
     return /Android/i.test(ua);
   }, []);
+
+  // 카운트다운이 끝나고 게임이 시작될 때 포커스 (iOS 제외)
+  useEffect(() => {
+    if (gameState === 'playing' && inputRef.current) {
+      const textarea = inputRef.current;
+      
+      // iOS가 아닌 브라우저에서만 자동 포커스 (Android Chrome 등)
+      // iOS에서는 자동 키보드 올리기가 불가능하므로 사용자가 직접 터치해야 함
+      if (!isIOS) {
+        textarea.focus();
+        
+        // 안정적인 포커스를 위해 한 번 더 시도
+        const timer = setTimeout(() => {
+          if (textarea) {
+            textarea.focus();
+          }
+        }, 100);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [gameState, isIOS]);
 
   // 스탑워치 시작 함수
   const startStopwatch = useCallback(() => {
@@ -800,118 +725,108 @@ ${shareUrl}`;
           </div>
         )}
 
-        {/* countdown과 playing 상태 모두에서 textarea를 렌더링 (iOS 키보드 올리기 위해) */}
-        {(gameState === 'countdown' || gameState === 'playing') && (
-          <>
-            {/* 카운트다운 표시 */}
-            {gameState === 'countdown' && (
-              <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
-                <div className="text-center">
-                  <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
-                    {countdown}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 게임 플레이 화면 (countdown 중에는 숨김) */}
-            <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn ${gameState === 'countdown' ? 'opacity-0 h-0 overflow-hidden pointer-events-none' : ''}`}>
-              {gameState === 'playing' && (
-                <div className="text-center mb-4 md:mb-6">
-                  <div className="text-3xl font-bold text-[#F93B4E] mb-2">
-                    {time.toFixed(2)}초
-                  </div>
-                </div>
-              )}
-              {gameState === 'playing' && (
-                <>
-                  <div className="mb-2 md:mb-6">
-                    {/* 지폐 이미지 애니메이션 */}
-                    {getBillImage(time) && (
-                    <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
-                      <div className="h-32 flex items-center justify-center">
-                        <img
-                          src={getBillImage(time)!}
-                          alt="지폐"
-                          className="max-h-24 md:max-h-32 w-auto"
-                          style={{
-                            filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
-                            animation: 'float 2.5s ease-in-out infinite',
-                            willChange: 'transform',
-                          }}
-                        />
-                      </div>
-                      <p className="text-sm md:text-base text-gray-600 mt-2 font-medium">
-                        {getBillMessage(time)}
-                      </p>
-                    </div>
-                  )}
-                  </div>
-                  <p className="text-base md:text-lg font-semibold text-gray-900 mb-4 leading-relaxed text-center">
-                    {currentSentence}
-                  </p>
-                </>
-              )}
-              <div className="relative">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onInput={handleInputChange}
-                  onFocus={handleIOSStart}
-                  onTouchStart={handleIOSStart}
-                  onMouseDown={handleIOSStart}
-                  onClick={handleIOSStart}
-                  readOnly={gameState !== 'playing'}
-                  onPaste={(e) => {
-                    e.preventDefault();
-                    // paste 이벤트 플래그 설정
-                    isPasteEventRef.current = true;
-                    // 값 초기화
-                    if (inputRef.current) {
-                      inputRef.current.value = '';
-                    }
-                    setInput('');
-                    setIsError(false);
-                    alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
-                  }}
-                  onCopy={(e) => {
-                    e.preventDefault();
-                  }}
-                  onCut={(e) => {
-                    e.preventDefault();
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                  }}
-                  className={`w-full p-4 border-2 rounded-xl text-sm md:text-base resize-none focus:outline-none transition-colors relative z-10 bg-transparent ${
-                    isError
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-gray-200 focus:border-[#F93B4E]'
-                  }`}
-                  style={{
-                    color: isError ? '#ef4444' : '#111827',
-                    minHeight: 'auto',
-                    height: 'auto',
-                    fontSize: '16px', // iOS Safari에서 자동 줌 방지 (16px 미만이면 줌됨)
-                  }}
-                />
-                {gameState === 'playing' && input.length === 0 && (
-                  <div 
-                    className="absolute top-0 left-0 w-full p-4 text-sm md:text-base text-gray-300 pointer-events-none z-0 whitespace-pre-wrap"
-                    style={{
-                      fontFamily: 'inherit',
-                      fontSize: 'inherit',
-                      lineHeight: 'inherit',
-                      letterSpacing: 'inherit',
-                    }}
-                  >
-                    {currentSentence}
-                  </div>
-                )}
+        {/* 카운트다운 화면 */}
+        {gameState === 'countdown' && (
+          <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+            <div className="text-center">
+              <div className="text-9xl font-bold text-[#F93B4E] animate-countdown">
+                {countdown}
               </div>
             </div>
-          </>
+          </div>
+        )}
+
+        {/* 게임 플레이 화면 */}
+        {gameState === 'playing' && (
+          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-6 ${isIOS ? 'pb-2' : 'pb-2 md:pb-6'} animate-fadeIn`}>
+            <div className="text-center mb-4 md:mb-6">
+              <div className="text-3xl font-bold text-[#F93B4E] mb-2">
+                {time.toFixed(2)}초
+              </div>
+            </div>
+            <div className="mb-2 md:mb-6">
+              {/* 지폐 이미지 애니메이션 */}
+              {getBillImage(time) && (
+                <div className="relative mb-4 flex flex-col items-center justify-center overflow-visible">
+                  <div className="h-32 flex items-center justify-center">
+                    <img
+                      src={getBillImage(time)!}
+                      alt="지폐"
+                      className="max-h-24 md:max-h-32 w-auto"
+                      style={{
+                        filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15))',
+                        animation: 'float 2.5s ease-in-out infinite',
+                        willChange: 'transform',
+                      }}
+                    />
+                  </div>
+                  <p className="text-sm md:text-base text-gray-600 mt-2 font-medium">
+                    {getBillMessage(time)}
+                  </p>
+                </div>
+              )}
+            </div>
+            <p className="text-base md:text-lg font-semibold text-gray-900 mb-4 leading-relaxed text-center">
+              {currentSentence}
+            </p>
+            <div className="relative">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                onInput={handleInputChange}
+                onFocus={handleIOSStart}
+                onTouchStart={handleIOSStart}
+                onMouseDown={handleIOSStart}
+                onClick={handleIOSStart}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  // paste 이벤트 플래그 설정
+                  isPasteEventRef.current = true;
+                  // 값 초기화
+                  if (inputRef.current) {
+                    inputRef.current.value = '';
+                  }
+                  setInput('');
+                  setIsError(false);
+                  alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
+                }}
+                onCopy={(e) => {
+                  e.preventDefault();
+                }}
+                onCut={(e) => {
+                  e.preventDefault();
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                }}
+                className={`w-full p-4 border-2 rounded-xl text-sm md:text-base resize-none focus:outline-none transition-colors relative z-10 bg-transparent ${
+                  isError
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-200 focus:border-[#F93B4E]'
+                }`}
+                style={{
+                  color: isError ? '#ef4444' : '#111827',
+                  minHeight: 'auto',
+                  height: 'auto',
+                  fontSize: '16px', // iOS Safari에서 자동 줌 방지 (16px 미만이면 줌됨)
+                }}
+              />
+              {input.length === 0 && (
+                <div 
+                  className="absolute top-0 left-0 w-full p-4 text-sm md:text-base text-gray-300 pointer-events-none z-0 whitespace-pre-wrap"
+                  style={{
+                    fontFamily: 'inherit',
+                    fontSize: 'inherit',
+                    lineHeight: 'inherit',
+                    letterSpacing: 'inherit',
+                  }}
+                >
+                  {currentSentence}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {gameState === 'result' && finalTime !== null && (
