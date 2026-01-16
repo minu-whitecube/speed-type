@@ -19,12 +19,14 @@ export default function Home() {
   const [time, setTime] = useState(0);
   const [isError, setIsError] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [tickets, setTickets] = useState(1);
+  const [tickets, setTickets] = useState<number | null>(null); // null로 초기화하여 로딩 상태 표시
   const [isCompleted, setIsCompleted] = useState(false);
   const [finalTime, setFinalTime] = useState<number | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
+  const [showNoTicketsModal, setShowNoTicketsModal] = useState(false);
+  const [showNoAccessModal, setShowNoAccessModal] = useState(false);
   const [copyText, setCopyText] = useState('');
   const [currentSentence, setCurrentSentence] = useState<string>('');
   
@@ -60,52 +62,107 @@ export default function Home() {
         setUserId(data.userId);
         setTickets(data.tickets);
         setIsCompleted(data.isCompleted);
+        
+        // isCompleted가 true이고 tickets가 0이면 기록 화면 표시
+        if (data.isCompleted && data.tickets === 0) {
+          // localStorage에서 finalTime 복원
+          if (typeof window !== 'undefined') {
+            const savedFinalTime = localStorage.getItem('challengersFinalTime');
+            if (savedFinalTime) {
+              const finalTimeValue = parseFloat(savedFinalTime);
+              if (!isNaN(finalTimeValue)) {
+                setFinalTime(finalTimeValue);
+                setGameState('result');
+              }
+            }
+          }
+        }
+        
+        // 데이터 반환 (tickets 체크용)
+        return data;
       }
+      return null;
     } catch (error) {
       console.error('Failed to initialize user:', error);
+      return null;
     }
   }, []);
 
-  // URL 파라미터에서 추천인 처리
+  // URL 파라미터에서 추천인 처리 및 tickets 체크
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const urlParams = new URLSearchParams(window.location.search);
     const refId = urlParams.get('ref');
+    const checkTickets = urlParams.get('checkTickets') === 'true';
     const currentUserId = getOrCreateUserId();
 
     if (currentUserId) {
-      initializeUser(currentUserId);
-
-      // 추천인 처리
-      if (refId && refId !== currentUserId) {
-        fetch('/api/referral/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            referrerId: refId,
-            referredId: currentUserId,
-          }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success) {
-              // URL에서 ref 파라미터 제거
-              window.history.replaceState({}, '', window.location.pathname);
-              // 현재 유저의 tickets 다시 조회 (피초대자는 기본 1개)
-              initializeUser(currentUserId);
-            }
+      // 먼저 유저 초기화를 완료한 후 추천인 처리 및 tickets 체크
+      initializeUser(currentUserId).then((userData) => {
+        // checkTickets 파라미터가 있으면 tickets 체크
+        if (checkTickets && userData) {
+          // URL에서 checkTickets 파라미터 제거
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('checkTickets');
+          window.history.replaceState({}, '', newUrl.toString());
+          
+          // tickets 체크
+          if (userData.tickets === 0) {
+            setShowNoAccessModal(true);
+          } else if (userData.tickets > 0) {
+            // tickets가 있으면 시작 화면으로
+            setGameState('start');
+          }
+        }
+        
+        // 추천인 처리
+        if (refId && refId !== currentUserId) {
+          fetch('/api/referral/process', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              referrerId: refId,
+              referredId: currentUserId,
+            }),
           })
-          .catch((error) => {
-            console.error('Failed to process referral:', error);
-          });
-      }
+            .then((res) => {
+              if (!res.ok) {
+                // HTTP 에러 응답 처리
+                return res.json().then((errorData) => {
+                  console.error('Referral API error:', {
+                    status: res.status,
+                    error: errorData.error,
+                    details: errorData.details,
+                  });
+                  throw new Error(errorData.error || 'Failed to process referral');
+                });
+              }
+              return res.json();
+            })
+            .then((data) => {
+              if (data.success) {
+                // URL에서 ref 파라미터 제거
+                window.history.replaceState({}, '', window.location.pathname);
+                // 현재 유저의 tickets 다시 조회 (피초대자는 기본 1개)
+                initializeUser(currentUserId);
+              } else {
+                console.error('Referral processing failed:', data);
+              }
+            })
+            .catch((error) => {
+              console.error('Failed to process referral:', error);
+            });
+        }
+      }).catch((error) => {
+        console.error('Failed to initialize user before referral processing:', error);
+      });
     }
   }, [getOrCreateUserId, initializeUser]);
 
   // 게임 시작
   const handleStart = () => {
-    if (!TEST_MODE && tickets <= 0) {
+    if (!TEST_MODE && tickets !== null && tickets <= 0) {
       alert('도전권이 없습니다. 링크를 공유하여 재도전 기회를 얻으세요!');
       return;
     }
@@ -406,6 +463,11 @@ export default function Home() {
     setFinalTime(time);
     setGameState('result');
 
+    // finalTime을 localStorage에 저장 (새로고침 시 복원용)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('challengersFinalTime', time.toString());
+    }
+
     // 도전권 차감 및 완료 상태 업데이트
     if (userId) {
       try {
@@ -416,7 +478,6 @@ export default function Home() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId }),
           });
-          setTickets((prev) => Math.max(0, prev - 1));
         }
 
         // 완료 상태 업데이트
@@ -427,6 +488,9 @@ export default function Home() {
         }).catch(() => {
           // API가 없어도 무시
         });
+
+        // 서버에서 최신 티켓 수 조회
+        await initializeUser(userId);
 
         setIsCompleted(true);
       } catch (error) {
@@ -459,7 +523,7 @@ export default function Home() {
 
   // 모달이 열릴 때 body 스크롤 막기 (모든 브라우저 호환)
   useEffect(() => {
-    const isModalOpen = showShareModal || showCopyModal || showRewardModal;
+    const isModalOpen = showShareModal || showCopyModal || showRewardModal || showNoTicketsModal || showNoAccessModal;
     
     if (isModalOpen) {
       // 현재 스크롤 위치 저장
@@ -479,7 +543,7 @@ export default function Home() {
         window.scrollTo(0, scrollY);
       };
     }
-  }, [showShareModal, showCopyModal, showRewardModal]);
+  }, [showShareModal, showCopyModal, showRewardModal, showNoTicketsModal, showNoAccessModal]);
 
   // 공유 URL 생성
   const getShareUrl = () => {
@@ -714,10 +778,32 @@ ${shareUrl}`;
     setShowRewardModal(false);
   };
 
+  // 도전권 없음 모달의 공유하기 버튼 클릭
+  const handleNoTicketsShare = async () => {
+    setShowNoTicketsModal(false);
+    await handleShare();
+  };
+
+  // 도전권 없음 모달의 "이미 친구에게 공유했어요" 버튼 클릭
+  const handleAlreadyShared = () => {
+    setShowNoTicketsModal(false);
+    
+    // URL 파라미터에 플래그 추가하여 새로고침 후 체크하도록 함
+    const url = new URL(window.location.href);
+    url.searchParams.set('checkTickets', 'true');
+    window.location.href = url.toString();
+  };
+
   // 재도전
-  const handleRetry = () => {
-    if (!TEST_MODE && tickets <= 0) {
-      alert('도전권이 없습니다. 링크를 공유하여 재도전 기회를 얻으세요!');
+  const handleRetry = async () => {
+    // 재도전 시 서버에서 최신 티켓 수 조회
+    if (userId) {
+      await initializeUser(userId);
+    }
+    
+    if (!TEST_MODE && tickets !== null && tickets <= 0) {
+      // tickets가 0이면 모달 표시
+      setShowNoTicketsModal(true);
       return;
     }
     // 재도전 시에도 새로운 랜덤 문장 선택
@@ -753,14 +839,16 @@ ${shareUrl}`;
             </p>
             <div className="text-center mb-6">
               <p className="text-sm text-gray-500 mb-2">남은 도전권</p>
-              <p className="text-2xl font-bold text-[#F93B4E]">{tickets}개</p>
+              <p className="text-2xl font-bold text-[#F93B4E]">
+                {tickets === null ? '...' : `${tickets}개`}
+              </p>
             </div>
             <button
               onClick={handleStart}
-              disabled={!TEST_MODE && tickets <= 0}
+              disabled={!TEST_MODE && (tickets === null || tickets <= 0)}
               className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {!TEST_MODE && tickets <= 0 ? '도전권이 없습니다' : '시작하기'}
+              {!TEST_MODE && tickets !== null && tickets <= 0 ? '도전권이 없습니다' : '시작하기'}
             </button>
           </div>
         )}
@@ -900,22 +988,22 @@ ${shareUrl}`;
             </div>
             <div className="space-y-3">
               <button
-                onClick={handleRewardClick}
+                onClick={handleRetry}
                 className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
               >
-                리워드 받기
+                다시 도전하기{tickets !== null ? `(${tickets})` : ''}
               </button>
               <button
                 onClick={handleShare}
                 className="w-full bg-blue-500 text-white py-4 rounded-xl font-semibold text-lg hover:bg-blue-600 active:scale-[0.98] transition-all duration-200"
               >
-                공유하기
+                공유하고 도전권 얻기
               </button>
               <button
-                onClick={handleRetry}
-                className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+                onClick={handleRewardClick}
+                className="w-full bg-gray-700 text-white py-4 rounded-xl font-semibold text-lg hover:bg-gray-800 active:scale-[0.98] transition-all duration-200"
               >
-                재도전
+                리워드 받기
               </button>
             </div>
           </div>
@@ -1071,6 +1159,94 @@ ${shareUrl}`;
                   className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
                 >
                   아뇨, 다시 도전할래요
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 도전권 없음 모달 */}
+        {showNoTicketsModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-5 animate-fadeIn"
+            onClick={(e) => {
+              // 모달 외부 클릭 시 닫기
+              if (e.target === e.currentTarget) {
+                setShowNoTicketsModal(false);
+              }
+            }}
+            style={{
+              // iOS Safari에서 모달이 제대로 표시되도록 보장
+              WebkitOverflowScrolling: 'touch',
+              position: 'fixed',
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                // iOS Safari에서 모달이 스크롤 가능하도록
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-4">도전권을 모두 소진했어요.</h3>
+              <p className="text-gray-900 mb-6">
+                친구에게 공유하면 또 도전할 수 있어요!
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={handleNoTicketsShare}
+                  className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+                >
+                  공유하고 도전하기
+                </button>
+                <button
+                  onClick={handleAlreadyShared}
+                  className="w-full bg-gray-50 text-gray-700 py-4 rounded-xl font-semibold text-lg hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+                >
+                  이미 친구에게 공유했어요
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 친구가 아직 링크에 접속하지 않음 모달 */}
+        {showNoAccessModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-5 animate-fadeIn"
+            onClick={(e) => {
+              // 모달 외부 클릭 시 닫기
+              if (e.target === e.currentTarget) {
+                setShowNoAccessModal(false);
+              }
+            }}
+            style={{
+              // iOS Safari에서 모달이 제대로 표시되도록 보장
+              WebkitOverflowScrolling: 'touch',
+              position: 'fixed',
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-6 max-w-md w-full animate-fadeIn shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                // iOS Safari에서 모달이 스크롤 가능하도록
+                maxHeight: '90vh',
+                overflowY: 'auto',
+              }}
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-4">친구가 아직 링크에 접속하지 않았어요</h3>
+              <p className="text-gray-900 mb-6">
+                친구가 링크를 클릭해야 도전권이 생겨요
+              </p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowNoAccessModal(false)}
+                  className="w-full bg-[#F93B4E] text-white py-4 rounded-xl font-semibold text-lg hover:bg-[#d83242] active:scale-[0.98] transition-all duration-200"
+                >
+                  확인
                 </button>
               </div>
             </div>
