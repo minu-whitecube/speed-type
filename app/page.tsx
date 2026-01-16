@@ -246,6 +246,13 @@ export default function Home() {
     return isIOSDevice && !(window as any).MSStream;
   }, []);
 
+  // Android 디바이스 감지
+  const isAndroid = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /Android/i.test(ua);
+  }, []);
+
   // 스탑워치 시작 함수
   const startStopwatch = useCallback(() => {
     if (isStopwatchStartedRef.current) {
@@ -373,6 +380,30 @@ export default function Home() {
       setIsError(false);
       // 플래그 리셋
       isPasteEventRef.current = false;
+      alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
+      return;
+    }
+
+    // Android에서 키보드 툴바를 통한 붙여넣기 차단
+    // 한 번에 2글자 이상이 입력되면 붙여넣기로 간주하고 차단
+    if (isAndroid && newLength - previousLength > 1) {
+      // 이벤트 차단
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // 값 초기화
+      if (inputRef.current) {
+        inputRef.current.value = input; // 이전 값으로 복원
+        setTimeout(() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+            // 추가로 값이 변경되었을 경우 다시 복원
+            if (inputRef.current.value !== input) {
+              inputRef.current.value = input;
+            }
+          }
+        }, 0);
+      }
       alert('복사-붙여넣기는 사용할 수 없습니다. 직접 입력해주세요.');
       return;
     }
