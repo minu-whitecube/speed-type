@@ -6,7 +6,7 @@ type GameState = 'start' | 'countdown' | 'playing' | 'result';
 
 // 랜덤으로 선택될 문장 목록
 const TARGET_SENTENCES = [
-  '2026년 챌린저스에서 페이백 받고 쇼핑하세요',
+  '올해는 챌린저스에서 페이백 받고 돈 아끼세요',
 ];
 
 // 테스트 모드: true로 설정하면 도전권 제한이 비활성화됩니다
@@ -60,6 +60,7 @@ export default function Home() {
   const placeholderRef = useRef<HTMLDivElement>(null);
   const isPasteEventRef = useRef<boolean>(false);
   const isStopwatchStartedRef = useRef<boolean>(false);
+  const isStartingRef = useRef<boolean>(false); // 중복 클릭 방지
 
   // 접근 제한 체크
   const isAccessRestricted = useMemo(() => {
@@ -192,27 +193,27 @@ export default function Home() {
 
   // 게임 시작
   const handleStart = async () => {
+    // 중복 클릭 방지: 이미 시작 중이면 무시
+    if (isStartingRef.current) {
+      return;
+    }
+
+    // 게임 상태 체크: 이미 countdown이나 playing 상태면 무시
+    if (gameState === 'countdown' || gameState === 'playing') {
+      return;
+    }
+
     if (!TEST_MODE && tickets !== null && tickets <= 0) {
       alert('도전권이 없습니다. 링크를 공유하여 재도전 기회를 얻으세요!');
       return;
     }
 
-    // 게임 시작 시 티켓 차감
-    if (userId && !TEST_MODE) {
-      try {
-        await fetch('/api/user/tickets', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
-        });
-        // 티켓 차감 후 최신 티켓 수 조회
-        await initializeUser(userId);
-      } catch (error) {
-        console.error('Failed to deduct ticket:', error);
-        // 티켓 차감 실패 시 게임 시작 중단
-        alert('도전권 차감에 실패했습니다. 다시 시도해주세요.');
-        return;
-      }
+    // 중복 실행 방지 플래그 설정
+    isStartingRef.current = true;
+
+    // 낙관적 업데이트: 티켓 수 즉시 감소 (UI 반응성 향상)
+    if (!TEST_MODE && tickets !== null && tickets > 0) {
+      setTickets(tickets - 1);
     }
 
     // 랜덤으로 문장 선택
@@ -226,11 +227,41 @@ export default function Home() {
     }
     isStopwatchStartedRef.current = false;
 
+    // 카운트다운 즉시 시작 (딜레이 제거)
     setGameState('countdown');
     setCountdown(3);
     setInput('');
     setTime(0);
     setIsError(false);
+
+    // 티켓 차감은 백그라운드에서 처리 (카운트다운 시작 후)
+    if (userId && !TEST_MODE) {
+      // 백그라운드에서 티켓 차감 처리 (await 제거로 즉시 반환)
+      fetch('/api/user/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+        .then(() => {
+          // 티켓 차감 후 최신 티켓 수 조회
+          return initializeUser(userId);
+        })
+        .catch((error) => {
+          console.error('Failed to deduct ticket:', error);
+          // 티켓 차감 실패 시 낙관적 업데이트 롤백
+          if (tickets !== null) {
+            setTickets(tickets);
+          }
+          // 에러는 조용히 처리 (이미 게임이 시작되었으므로)
+        })
+        .finally(() => {
+          // 처리 완료 후 플래그 해제
+          isStartingRef.current = false;
+        });
+    } else {
+      // TEST_MODE이거나 userId가 없으면 즉시 플래그 해제
+      isStartingRef.current = false;
+    }
   };
 
   // 카운트다운
