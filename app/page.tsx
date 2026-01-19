@@ -6,7 +6,7 @@ type GameState = 'start' | 'countdown' | 'playing' | 'result';
 
 // 랜덤으로 선택될 문장 목록
 const TARGET_SENTENCES = [
-  '차앤박 더마앤서 액티브 부스트 PDRN 앰플',
+  '2026년 챌린저스에서 페이백 받고 쇼핑하세요',
 ];
 
 // 테스트 모드: true로 설정하면 도전권 제한이 비활성화됩니다
