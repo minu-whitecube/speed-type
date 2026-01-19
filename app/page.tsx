@@ -81,7 +81,7 @@ export default function Home() {
   }, []);
 
   // 유저 초기화
-  const initializeUser = useCallback(async (id: string) => {
+  const initializeUser = useCallback(async (id: string, skipResultRedirect: boolean = false) => {
     try {
       const response = await fetch('/api/user/init', {
         method: 'POST',
@@ -95,15 +95,25 @@ export default function Home() {
         setIsCompleted(data.isCompleted);
         
         // isCompleted가 true이고 tickets가 0이면 기록 화면 표시
-        if (data.isCompleted && data.tickets === 0) {
-          // localStorage에서 finalTime 복원
+        // 단, 게임이 진행 중일 때는 강제 이동하지 않음 (skipResultRedirect가 true이거나 gameState가 countdown/playing일 때)
+        if (data.isCompleted && data.tickets === 0 && !skipResultRedirect) {
+          // 현재 gameState를 체크하여 게임 진행 중이면 기록 화면으로 이동하지 않음
+          setGameState((currentState) => {
+            // 게임이 진행 중(countdown, playing)이면 현재 상태 유지
+            if (currentState === 'countdown' || currentState === 'playing') {
+              return currentState;
+            }
+            // 그 외의 경우에만 기록 화면으로 이동
+            return 'result';
+          });
+          
+          // localStorage에서 finalTime 복원 (게임 진행 중이 아닐 때만)
           if (typeof window !== 'undefined') {
             const savedFinalTime = localStorage.getItem('challengersFinalTime');
             if (savedFinalTime) {
               const finalTimeValue = parseFloat(savedFinalTime);
               if (!isNaN(finalTimeValue)) {
                 setFinalTime(finalTimeValue);
-                setGameState('result');
               }
             }
           }
@@ -244,7 +254,8 @@ export default function Home() {
       })
         .then(() => {
           // 티켓 차감 후 최신 티켓 수 조회
-          return initializeUser(userId);
+          // 게임이 진행 중이므로 기록 화면으로 강제 이동하지 않음
+          return initializeUser(userId, true);
         })
         .catch((error) => {
           console.error('Failed to deduct ticket:', error);
