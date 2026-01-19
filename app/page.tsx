@@ -191,10 +191,28 @@ export default function Home() {
   }, [getOrCreateUserId, initializeUser]);
 
   // 게임 시작
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!TEST_MODE && tickets !== null && tickets <= 0) {
       alert('도전권이 없습니다. 링크를 공유하여 재도전 기회를 얻으세요!');
       return;
+    }
+
+    // 게임 시작 시 티켓 차감
+    if (userId && !TEST_MODE) {
+      try {
+        await fetch('/api/user/tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+        // 티켓 차감 후 최신 티켓 수 조회
+        await initializeUser(userId);
+      } catch (error) {
+        console.error('Failed to deduct ticket:', error);
+        // 티켓 차감 실패 시 게임 시작 중단
+        alert('도전권 차감에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
     }
 
     // 랜덤으로 문장 선택
@@ -498,18 +516,9 @@ export default function Home() {
       localStorage.setItem('challengersFinalTime', time.toString());
     }
 
-    // 도전권 차감 및 완료 상태 업데이트
+    // 완료 상태 업데이트 및 기록 저장 (티켓은 게임 시작 시 이미 차감됨)
     if (userId) {
       try {
-        // 테스트 모드가 아닐 때만 tickets 차감
-        if (!TEST_MODE) {
-          await fetch('/api/user/tickets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId }),
-          });
-        }
-
         // 완료 상태 업데이트 및 기록 저장
         await fetch('/api/user/complete', {
           method: 'POST',
@@ -518,9 +527,6 @@ export default function Home() {
         }).catch(() => {
           // API가 없어도 무시
         });
-
-        // 서버에서 최신 티켓 수 조회
-        await initializeUser(userId);
 
         setIsCompleted(true);
       } catch (error) {
