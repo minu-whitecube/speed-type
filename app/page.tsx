@@ -826,16 +826,19 @@ ${shareUrl}`;
 
   // 재도전
   const handleRetry = async () => {
-    // 낙관적 업데이트: 티켓 체크를 먼저 수행
-    if (!TEST_MODE && tickets !== null && tickets <= 0) {
-      // tickets가 0이면 모달 표시
+    // 재도전 시 서버에서 최신 티켓 수 조회
+    if (userId) {
+      const userData = await initializeUser(userId);
+      // 서버에서 가져온 최신 티켓 수로 체크
+      if (!TEST_MODE && userData && userData.tickets <= 0) {
+        // tickets가 0이면 모달 표시
+        setShowNoTicketsModal(true);
+        return;
+      }
+    } else if (!TEST_MODE && tickets !== null && tickets <= 0) {
+      // userId가 없을 때는 현재 tickets 상태로 체크
       setShowNoTicketsModal(true);
       return;
-    }
-    
-    // 낙관적 업데이트: 티켓 수를 즉시 1 감소시킨 것처럼 표시 (0보다 클 때만)
-    if (tickets !== null && tickets > 0) {
-      setTickets(tickets - 1);
     }
     
     // 재도전 시에도 새로운 랜덤 문장 선택
@@ -847,14 +850,6 @@ ${shareUrl}`;
     setTime(0);
     setFinalTime(null);
     setIsError(false);
-    
-    // 백그라운드에서 서버에서 최신 티켓 수 조회 (UI 업데이트는 이미 완료)
-    if (userId) {
-      initializeUser(userId).catch((error) => {
-        console.error('Failed to refresh tickets:', error);
-        // 에러 발생 시 원래 값으로 복원하지 않음 (이미 게임이 시작되었으므로)
-      });
-    }
   };
 
   // 접근 제한 시 메시지만 표시
