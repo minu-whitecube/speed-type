@@ -21,8 +21,23 @@ const isMobileDevice = (): boolean => {
   
   const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
   
-  // 인스타그램 인앱 브라우저 감지 (모바일로 간주)
+  // 디버깅: User-Agent 로깅 (개발 환경에서만)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('User-Agent:', userAgent);
+    console.log('Screen width:', window.innerWidth);
+    console.log('Touch support:', 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }
+  
+  // 인스타그램 인앱 브라우저 감지 (모바일로 간주) - 최우선 체크
+  // 인스타그램 인앱 브라우저는 실제로 모바일 디바이스에서만 실행되므로 무조건 모바일로 간주
   const instagramInApp = /Instagram|FBAN|FBAV/i.test(userAgent);
+  
+  if (instagramInApp) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Instagram in-app browser detected, treating as mobile');
+    }
+    return true; // 인스타그램 인앱 브라우저는 무조건 모바일로 간주
+  }
   
   // 화면 너비 체크 (768px 이하를 모바일로 간주)
   const isSmallScreen = window.innerWidth <= 768;
@@ -30,29 +45,34 @@ const isMobileDevice = (): boolean => {
   // 터치 이벤트 지원 여부 체크
   const hasTouchSupport = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   
+  // 화면이 작고 터치를 지원하면 모바일로 간주 (인앱 브라우저 대응)
+  if (isSmallScreen && hasTouchSupport) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Small screen with touch support detected as mobile');
+    }
+    return true;
+  }
+  
   // 모바일 디바이스 패턴
   const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
   
-  // 태블릿은 제외 (iPad, Android 태블릿 등)
+  // 태블릿은 제외 (iPad, Android 태블릿 등) - 단, 인스타그램 인앱 브라우저는 이미 처리됨
   const tabletRegex = /ipad|android(?!.*mobile)|tablet|playbook|silk/i;
   
   // 태블릿이면 false 반환
   if (tabletRegex.test(userAgent)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Tablet detected, returning false');
+    }
     return false;
   }
   
-  // 인스타그램 인앱 브라우저이고 화면이 작으면 모바일로 간주
-  if (instagramInApp && isSmallScreen) {
-    return true;
-  }
-  
-  // 화면이 작고 터치를 지원하면 모바일로 간주 (인앱 브라우저 대응)
-  if (isSmallScreen && hasTouchSupport) {
-    return true;
-  }
-  
   // 모바일이면 true 반환
-  return mobileRegex.test(userAgent);
+  const isMobile = mobileRegex.test(userAgent);
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Mobile regex result:', isMobile);
+  }
+  return isMobile;
 };
 
 export default function Home() {
