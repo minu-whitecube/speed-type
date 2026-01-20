@@ -21,6 +21,15 @@ const isMobileDevice = (): boolean => {
   
   const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
   
+  // 인스타그램 인앱 브라우저 감지 (모바일로 간주)
+  const instagramInApp = /Instagram|FBAN|FBAV/i.test(userAgent);
+  
+  // 화면 너비 체크 (768px 이하를 모바일로 간주)
+  const isSmallScreen = window.innerWidth <= 768;
+  
+  // 터치 이벤트 지원 여부 체크
+  const hasTouchSupport = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  
   // 모바일 디바이스 패턴
   const mobileRegex = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i;
   
@@ -30,6 +39,16 @@ const isMobileDevice = (): boolean => {
   // 태블릿이면 false 반환
   if (tabletRegex.test(userAgent)) {
     return false;
+  }
+  
+  // 인스타그램 인앱 브라우저이고 화면이 작으면 모바일로 간주
+  if (instagramInApp && isSmallScreen) {
+    return true;
+  }
+  
+  // 화면이 작고 터치를 지원하면 모바일로 간주 (인앱 브라우저 대응)
+  if (isSmallScreen && hasTouchSupport) {
+    return true;
   }
   
   // 모바일이면 true 반환
