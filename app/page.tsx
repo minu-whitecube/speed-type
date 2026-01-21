@@ -15,6 +15,9 @@ const TEST_MODE = false;
 // 데스크탑/태블릿 접근 제한: true로 설정하면 모바일 환경에서만 플레이 가능합니다
 const DESKTOP_ACCESS_RESTRICTED = true;
 
+// 이벤트 종료 여부: true로 설정하면 이벤트 종료 메시지만 표시됩니다
+const EVENT_ENDED = true;
+
 // 모바일 환경 감지 함수
 const isMobileDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -28,15 +31,17 @@ const isMobileDevice = (): boolean => {
     console.log('Touch support:', 'ontouchstart' in window || navigator.maxTouchPoints > 0);
   }
   
-  // 인스타그램 인앱 브라우저 감지 (모바일로 간주) - 최우선 체크
-  // 인스타그램 인앱 브라우저는 실제로 모바일 디바이스에서만 실행되므로 무조건 모바일로 간주
-  const instagramInApp = /Instagram|FBAN|FBAV/i.test(userAgent);
+  // 인스타그램/페이스북 인앱 브라우저 감지 (모바일로 간주) - 최우선 체크
+  // 인스타그램/페이스북 인앱 브라우저는 실제로 모바일 디바이스에서만 실행되므로 무조건 모바일로 간주
+  // Instagram: 인스타그램 인앱 브라우저
+  // FBAN, FBAV: 페이스북 앱 인앱 브라우저
+  const socialInApp = /Instagram|FBAN|FBAV/i.test(userAgent);
   
-  if (instagramInApp) {
+  if (socialInApp) {
     if (process.env.NODE_ENV === 'development') {
-      console.log('Instagram in-app browser detected, treating as mobile');
+      console.log('Instagram/Facebook in-app browser detected, treating as mobile');
     }
-    return true; // 인스타그램 인앱 브라우저는 무조건 모바일로 간주
+    return true; // 인스타그램/페이스북 인앱 브라우저는 무조건 모바일로 간주
   }
   
   // 화면 너비 체크 (768px 이하를 모바일로 간주)
@@ -938,6 +943,29 @@ ${shareUrl}`;
     setFinalTime(null);
     setIsError(false);
   };
+
+  // 이벤트 종료 시 종료 메시지만 표시
+  if (EVENT_ENDED) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center px-3">
+        <div className="container mx-auto max-w-2xl w-full text-center">
+          <div className="flex justify-center mb-6">
+            <img
+              src="/logo_challengers.png"
+              alt="챌린저스 로고"
+              className="h-10 md:h-10 w-auto"
+            />
+          </div>
+          <p className="text-xl font-bold text-gray-900 mb-2">
+            이벤트가 종료되었습니다.
+          </p>
+          <p className="text-lg text-gray-700">
+            더 좋은 기획으로 다시 찾아올게요!
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // 접근 제한 시 메시지만 표시
   if (isAccessRestricted) {
